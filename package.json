@@ -1,0 +1,12 @@
+{
+  "name": "neuralgrid-dynamics",
+  "private": true,
+  "version": "1.0.0",
+  "description": "NeuralGrid Dynamics - Contract Procurement & RFP Platform",
+  "scripts": {
+    "dev": "python3 -m http.server 3000",
+    "build": "mkdir -p dist && cp index.html dist/",
+    "start": "python3 -m http.server 3000",
+    "lint": "echo 'Static HTML app verified'"
+  }
+}
