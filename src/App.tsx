@@ -11,6 +11,12 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { AiEstimatorModal } from './components/AiEstimatorModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { defaultSiteConfig, defaultProjects, defaultClients, defaultServices } from './data/initialData';
+import {
+  subscribeToSiteConfig,
+  subscribeToProjects,
+  subscribeToClients,
+  subscribeToServices
+} from './lib/firebase';
 
 export default function App() {
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
@@ -26,7 +32,48 @@ export default function App() {
   const [isEstimatorOpen, setIsEstimatorOpen] = useState(false);
   const [prefillService, setPrefillService] = useState<string>('');
 
-  // Fetch Public Site Data
+  // Subscribe to Cloud Firestore Realtime Updates (Sync across all devices & browsers)
+  useEffect(() => {
+    const unsubSite = subscribeToSiteConfig((cloudSite) => {
+      if (cloudSite) {
+        setSiteConfig({
+          ...defaultSiteConfig,
+          ...cloudSite,
+          stats: {
+            ...defaultSiteConfig.stats,
+            ...(cloudSite.stats || {}),
+          },
+        });
+      }
+    });
+
+    const unsubProjects = subscribeToProjects((cloudProjects) => {
+      if (cloudProjects && cloudProjects.length > 0) {
+        setProjects(cloudProjects);
+      }
+    });
+
+    const unsubClients = subscribeToClients((cloudClients) => {
+      if (cloudClients && cloudClients.length > 0) {
+        setClients(cloudClients);
+      }
+    });
+
+    const unsubServices = subscribeToServices((cloudServices) => {
+      if (cloudServices && cloudServices.length > 0) {
+        setServices(cloudServices);
+      }
+    });
+
+    return () => {
+      unsubSite();
+      unsubProjects();
+      unsubClients();
+      unsubServices();
+    };
+  }, []);
+
+  // Fetch Public Site Data Fallback
   const fetchPublicData = async () => {
     try {
       const res = await fetch('/api/public/site');
@@ -39,22 +86,35 @@ export default function App() {
         return;
       }
     } catch (err) {
-      console.warn('Using local site config fallback for static hosting');
+      // Offline / Static fallback
     }
 
-    // Local storage fallback for GitHub Pages static site
     try {
       const savedSite = localStorage.getItem('ngd_site_config');
       const savedProjects = localStorage.getItem('ngd_projects');
       const savedClients = localStorage.getItem('ngd_clients');
       const savedServices = localStorage.getItem('ngd_services');
 
-      if (savedSite) setSiteConfig(JSON.parse(savedSite));
+      if (savedSite) {
+        try {
+          const parsed = JSON.parse(savedSite);
+          setSiteConfig({
+            ...defaultSiteConfig,
+            ...parsed,
+            stats: {
+              ...defaultSiteConfig.stats,
+              ...(parsed.stats || {}),
+            },
+          });
+        } catch (err) {
+          console.warn('Failed to parse savedSite:', err);
+        }
+      }
       if (savedProjects) setProjects(JSON.parse(savedProjects));
       if (savedClients) setClients(JSON.parse(savedClients));
       if (savedServices) setServices(JSON.parse(savedServices));
     } catch (e) {
-      console.warn('Could not parse localStorage cache, using default initial data', e);
+      console.warn('Could not parse localStorage cache', e);
     }
   };
 

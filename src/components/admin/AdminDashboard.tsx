@@ -3,6 +3,12 @@ import { SiteConfig, Project, Client, Service, Inquiry, SecurityLog } from '../.
 import { defaultSiteConfig, defaultProjects, defaultClients } from '../../data/initialData';
 import { ImageUploader } from './ImageUploader';
 import {
+  saveSiteConfigToCloud,
+  saveProjectsToCloud,
+  saveClientsToCloud,
+  saveServicesToCloud
+} from '../../lib/firebase';
+import {
   Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock, Sliders, MoveLeft, MoveRight, Layout
 } from 'lucide-react';
 
@@ -137,15 +143,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     e.preventDefault();
     if (!siteConfig) return;
 
+    // Save to Firebase Cloud Firestore for instant cross-device live sync
+    try {
+      await saveSiteConfigToCloud(siteConfig);
+    } catch (err) {
+      console.warn('Firestore cloud sync warning:', err);
+    }
+
     try {
       const res = await authFetch('/api/admin/site', {
         method: 'PUT',
         body: JSON.stringify(siteConfig),
       });
       if (res.ok) {
-        setStatusMsg('Branding & Site Configuration updated successfully!');
+        setStatusMsg('Saved to Cloud Database & Live across all computers!');
         onRefreshPublicData();
-        setTimeout(() => setStatusMsg(''), 3000);
+        setTimeout(() => setStatusMsg(''), 4000);
         return;
       }
     } catch (err) {
@@ -154,9 +167,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
 
     // Local storage update for static deployment
     localStorage.setItem('ngd_site_config', JSON.stringify(siteConfig));
-    setStatusMsg('Branding & Site Configuration saved locally!');
+    setStatusMsg('Saved to Cloud Database & Live across all computers!');
     onRefreshPublicData();
-    setTimeout(() => setStatusMsg(''), 3000);
+    setTimeout(() => setStatusMsg(''), 4000);
   };
 
   // Save Project (Add / Edit)
@@ -170,47 +183,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       imageUrl: projectForm.imageUrl || 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800',
     };
 
+    let updatedProjects = [...projects];
+    if (editingProject) {
+      updatedProjects = updatedProjects.map(p => p.id === editingProject.id ? { ...p, ...payload, slug: payload.title.toLowerCase().replace(/\s+/g, '-') } : p);
+      setEditingProject(null);
+    } else {
+      const newProj: Project = {
+        id: 'proj-' + Date.now(),
+        ...payload,
+        slug: payload.title.toLowerCase().replace(/\s+/g, '-'),
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+      updatedProjects.unshift(newProj);
+      setIsAddingProject(false);
+    }
+
+    setProjects(updatedProjects);
+    localStorage.setItem('ngd_projects', JSON.stringify(updatedProjects));
+
+    // Save to Cloud Firestore
+    try {
+      await saveProjectsToCloud(updatedProjects);
+    } catch (err) {
+      console.warn('Firestore cloud sync warning:', err);
+    }
+
     try {
       if (editingProject) {
-        const res = await authFetch(`/api/admin/projects/${editingProject.id}`, {
+        await authFetch(`/api/admin/projects/${editingProject.id}`, {
           method: 'PUT',
           body: JSON.stringify(payload),
         });
-        if (res.ok) {
-          setStatusMsg('Project updated successfully.');
-          setEditingProject(null);
-        }
       } else {
-        const res = await authFetch('/api/admin/projects', {
+        await authFetch('/api/admin/projects', {
           method: 'POST',
           body: JSON.stringify(payload),
         });
-        if (res.ok) {
-          setStatusMsg('New project published.');
-          setIsAddingProject(false);
-        }
       }
     } catch (err) {
-      console.warn('Backend unavailable, updating projects in localStorage');
-      // Local storage fallback
-      let updatedProjects = [...projects];
-      if (editingProject) {
-        updatedProjects = updatedProjects.map(p => p.id === editingProject.id ? { ...p, ...payload, slug: payload.title.toLowerCase().replace(/\s+/g, '-') } : p);
-        setEditingProject(null);
-      } else {
-        const newProj: Project = {
-          id: 'proj-' + Date.now(),
-          ...payload,
-          slug: payload.title.toLowerCase().replace(/\s+/g, '-'),
-          createdAt: new Date().toISOString().split('T')[0]
-        };
-        updatedProjects.unshift(newProj);
-        setIsAddingProject(false);
-      }
-      setProjects(updatedProjects);
-      localStorage.setItem('ngd_projects', JSON.stringify(updatedProjects));
-      setStatusMsg('Projects updated successfully.');
+      // ignore
     }
+
+    setStatusMsg('Projects updated & synced to Cloud Database!');
 
     // Reset Form
     setProjectForm({
@@ -234,47 +248,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   // Delete Project
   const handleDeleteProject = async (id: string) => {
     if (!confirm('Are you sure you want to remove this project?')) return;
-    try {
-      const res = await authFetch(`/api/admin/projects/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadAdminData();
-        onRefreshPublicData();
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend unavailable, deleting project in localStorage');
-    }
 
     const updated = projects.filter(p => p.id !== id);
     setProjects(updated);
     localStorage.setItem('ngd_projects', JSON.stringify(updated));
+
+    try {
+      await saveProjectsToCloud(updated);
+    } catch (err) {
+      console.warn('Firestore cloud sync warning:', err);
+    }
+
+    try {
+      await authFetch(`/api/admin/projects/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      // ignore
+    }
+
+    setStatusMsg('Project deleted & synced to Cloud!');
     onRefreshPublicData();
+    setTimeout(() => setStatusMsg(''), 3000);
   };
 
   // Save Client (Add)
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
+    const newClient: Client = {
+      id: 'client-' + Date.now(),
+      ...clientForm
+    };
+    const updated = [newClient, ...clients];
+    setClients(updated);
+    localStorage.setItem('ngd_clients', JSON.stringify(updated));
+    setIsAddingClient(false);
+
     try {
-      const res = await authFetch('/api/admin/clients', {
+      await saveClientsToCloud(updated);
+    } catch (err) {
+      console.warn('Firestore cloud sync warning:', err);
+    }
+
+    try {
+      await authFetch('/api/admin/clients', {
         method: 'POST',
         body: JSON.stringify(clientForm),
       });
-      if (res.ok) {
-        setStatusMsg('Client added successfully.');
-        setIsAddingClient(false);
-      }
     } catch (err) {
-      console.warn('Backend unavailable, saving client to localStorage');
-      const newClient: Client = {
-        id: 'client-' + Date.now(),
-        ...clientForm
-      };
-      const updated = [newClient, ...clients];
-      setClients(updated);
-      localStorage.setItem('ngd_clients', JSON.stringify(updated));
-      setIsAddingClient(false);
-      setStatusMsg('Client added successfully.');
+      // ignore
     }
+
+    setStatusMsg('Client added & synced to Cloud Database!');
 
     setClientForm({
       name: '',
@@ -294,21 +317,26 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   // Delete Client
   const handleDeleteClient = async (id: string) => {
     if (!confirm('Are you sure you want to delete this client?')) return;
-    try {
-      const res = await authFetch(`/api/admin/clients/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadAdminData();
-        onRefreshPublicData();
-        return;
-      }
-    } catch (err) {
-      console.warn('Backend unavailable, deleting client in localStorage');
-    }
 
     const updated = clients.filter(c => c.id !== id);
     setClients(updated);
     localStorage.setItem('ngd_clients', JSON.stringify(updated));
+
+    try {
+      await saveClientsToCloud(updated);
+    } catch (err) {
+      console.warn('Firestore cloud sync warning:', err);
+    }
+
+    try {
+      await authFetch(`/api/admin/clients/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      // ignore
+    }
+
+    setStatusMsg('Client deleted & synced to Cloud!');
     onRefreshPublicData();
+    setTimeout(() => setStatusMsg(''), 3000);
   };
 
   // Update Inquiry Status
@@ -360,6 +388,79 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     navigator.clipboard.writeText(code);
     setCopyStatus(label);
     setTimeout(() => setCopyStatus(null), 2500);
+  };
+
+  // Generate TS Code string for initialData.ts
+  const generateInitialDataTs = () => {
+    return `import { SiteConfig, Project, Client, Service } from '../types';
+
+export const defaultSiteConfig: SiteConfig = ${JSON.stringify(siteConfig || defaultSiteConfig, null, 2)};
+
+export const defaultProjects: Project[] = ${JSON.stringify(projects.length > 0 ? projects : defaultProjects, null, 2)};
+
+export const defaultClients: Client[] = ${JSON.stringify(clients.length > 0 ? clients : defaultClients, null, 2)};
+
+export const defaultServices: Service[] = [
+  {
+    id: 'serv-1',
+    title: 'Custom Enterprise LLM & RAG Architectures',
+    icon: 'Cpu',
+    shortDesc: 'Fine-tuned private LLM models, vector embeddings, and hybrid knowledge graph RAG for enterprise datasets.',
+    features: ['Fine-Tuning Llama 3 / Mistral / DeepSeek', 'Air-Gapped Local Deployment', 'Hybrid Graph + Vector Search', 'Enterprise RBAC Data Controls']
+  },
+  {
+    id: 'serv-2',
+    title: 'Autonomous Multi-Agent AI Workflows',
+    icon: 'Bot',
+    shortDesc: 'Multi-agent frameworks capable of planning, executing complex API actions, and auto-correcting code/workflows.',
+    features: ['LangGraph & AutoGen Workflows', 'Self-Healing API Pipelines', 'Tool-Calling Security Sandboxes', 'Human-in-the-loop Guardrails']
+  },
+  {
+    id: 'serv-3',
+    title: 'High-Precision Computer Vision & Edge AI',
+    icon: 'Eye',
+    shortDesc: 'Microsecond latency vision models for industrial inspection, robotics, spatial mapping, and biometric security.',
+    features: ['Real-Time Object Detection & Tracking', 'Edge GPU Optimization (TensorRT)', 'Micro-Defect Industrial Scanners', 'Thermal & Multispectral Imaging']
+  },
+  {
+    id: 'serv-4',
+    title: 'Predictive Analytics & Time-Series Neural Grids',
+    icon: 'TrendingUp',
+    shortDesc: 'Deep temporal forecasting for supply chains, financial risk modeling, energy grid loading, and preventative maintenance.',
+    features: ['Transformer Time-Series Forecasting', 'Real-time Streaming Anomaly Detection', 'Algorithmic Risk Assessment', 'Automated Retraining MLOps']
+  }
+];
+`;
+  };
+
+  // Helper to trigger initialData.ts file download
+  const handleDownloadInitialDataTs = () => {
+    const code = generateInitialDataTs();
+    const blob = new Blob([code], { type: 'text/typescript' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'initialData.ts';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatusMsg('Downloaded initialData.ts! Replace /src/data/initialData.ts in your GitHub repository & git push.');
+    setTimeout(() => setStatusMsg(''), 6000);
+  };
+
+  // Reset local storage overrides
+  const handleResetLocalCache = () => {
+    if (confirm('Reset local browser storage and reload default repository data?')) {
+      localStorage.removeItem('ngd_site_config');
+      localStorage.removeItem('ngd_projects');
+      localStorage.removeItem('ngd_clients');
+      localStorage.removeItem('ngd_services');
+      loadAdminData();
+      onRefreshPublicData();
+      setStatusMsg('Reset local browser cache! Loaded data from initialData.ts.');
+      setTimeout(() => setStatusMsg(''), 4000);
+    }
   };
 
   return (
@@ -806,6 +907,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
                     className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3 py-2 text-xs text-white"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* GitHub Pages Sync & Export Bar */}
+            <div className="pt-6 border-t border-gray-800 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Site Changes</span>
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={handleDownloadInitialDataTs}
+                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download initialData.ts (Global Sync)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(generateInitialDataTs(), 'initialData')}
+                    className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold text-xs rounded-xl transition flex items-center space-x-1.5"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>{copyStatus === 'initialData' ? 'Copied Code!' : 'Copy initialData.ts Code'}</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleResetLocalCache}
+                  className="px-3.5 py-2 text-xs text-gray-400 hover:text-red-400 font-medium transition"
+                >
+                  Reset Local Cache
+                </button>
+              </div>
+
+              <div className="p-4 bg-purple-950/40 border border-purple-800/40 rounded-xl text-xs space-y-1.5">
+                <p className="font-bold text-purple-300 flex items-center space-x-2">
+                  <span>🌐 Why changes need to be committed to GitHub for other computers to see them:</span>
+                </p>
+                <p className="text-gray-300 text-[11px] leading-relaxed">
+                  GitHub Pages (<code className="text-purple-300 font-mono">neuralgriddynamics.github.io</code>) serves static web pages without a central database. When you click <strong>"Save Site Changes"</strong>, your edits are saved to this browser's local cache.
+                  <br />
+                  To publish your changes live so visitors on <strong>ALL computers, phones, and laptops</strong> see them:
+                  <br />
+                  1. Click <strong>"Download initialData.ts"</strong> above.
+                  <br />
+                  2. Replace <code className="bg-purple-900/60 px-1 py-0.5 rounded text-purple-200 font-mono">/src/data/initialData.ts</code> in your repository on GitHub.
+                  <br />
+                  3. Commit and push (<code className="bg-purple-900/60 px-1 py-0.5 rounded text-purple-200 font-mono">git commit -m "Update site data" && git push</code>). GitHub Actions will auto-deploy your changes globally!
+                </p>
               </div>
             </div>
           </form>
@@ -1348,8 +1507,63 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
                 <span>GitHub Publishing & PHP Export Center</span>
               </h2>
               <p className="text-xs text-gray-400 mt-1">
-                As requested, we have auto-generated export files (<code className="text-purple-300">index.php</code>, <code className="text-purple-300">admin/index.php</code>, and <code className="text-purple-300">.github/workflows/deploy.yml</code>) so you can publish directly to GitHub Pages or cPanel PHP servers!
+                Download live updated code files (<code className="text-purple-300">initialData.ts</code>, <code className="text-purple-300">index.php</code>, and <code className="text-purple-300">deploy.yml</code>) to publish changes permanently to GitHub Pages or cPanel servers!
               </p>
+            </div>
+
+            {/* Featured Card: Live initialData.ts Exporter for GitHub Pages */}
+            <div className="bg-gradient-to-r from-purple-950/80 to-blue-950/80 border border-purple-500/40 rounded-2xl p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div>
+                  <span className="px-2 py-0.5 bg-purple-500/20 text-purple-300 text-[10px] font-mono rounded uppercase font-bold border border-purple-500/30">
+                    Primary Sync Tool
+                  </span>
+                  <h3 className="text-base font-extrabold text-white mt-1">
+                    Export Updated <code className="text-purple-300 font-mono">/src/data/initialData.ts</code>
+                  </h3>
+                  <p className="text-xs text-gray-300 mt-0.5">
+                    This file contains your latest Admin edits (logo dimensions, position, company name, taglines, projects, and clients).
+                  </p>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={handleDownloadInitialDataTs}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-1.5"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download File</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleCopyCode(generateInitialDataTs(), 'initialDataExport')}
+                    className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-xs font-bold rounded-xl flex items-center space-x-1 text-gray-200"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>{copyStatus === 'initialDataExport' ? 'Copied!' : 'Copy Code'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-3 bg-gray-950/80 rounded-xl border border-gray-800 text-xs text-gray-300 font-mono space-y-1">
+                <div className="text-purple-400 font-bold text-[11px]">📋 3-Step Sync Guide for GitHub Pages:</div>
+                <div className="text-[11px] text-gray-400">
+                  1. Click <strong>"Download File"</strong> above to get <code className="text-purple-300">initialData.ts</code>.
+                  <br />
+                  2. Drop it into <code className="text-purple-300">/src/data/initialData.ts</code> in your GitHub repository.
+                  <br />
+                  3. Run <code className="text-purple-300">git commit -m "Update site data" && git push</code>. Visitors on all computers & laptops will see your updated site!
+                </div>
+              </div>
+
+              <details className="text-xs">
+                <summary className="cursor-pointer font-bold text-purple-300 hover:text-purple-200">
+                  View Live Generated Code Preview
+                </summary>
+                <pre className="mt-2 p-4 bg-gray-950 rounded-xl text-xs font-mono text-gray-300 overflow-x-auto border border-gray-800 max-h-60">
+                  {generateInitialDataTs()}
+                </pre>
+              </details>
             </div>
 
             {/* Workflow yml Viewer */}

@@ -1,0 +1,80 @@
+{
+  "entities": {
+    "SiteConfig": {
+      "title": "Site Config",
+      "description": "Global company settings, logo, contact info, and metrics",
+      "type": "object",
+      "properties": {
+        "companyName": { "type": "string" },
+        "heroTagline": { "type": "string" },
+        "heroSubtitle": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "logoWidth": { "type": "number" },
+        "logoHeight": { "type": "number" },
+        "logoX": { "type": "number" },
+        "logoY": { "type": "number" },
+        "contactEmail": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "address": { "type": "string" },
+        "stats": { "type": "object" }
+      }
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Portfolio item or case study",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "image": { "type": "string" },
+        "metrics": { "type": "string" },
+        "techStack": { "type": "array" },
+        "clientName": { "type": "string" }
+      }
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Enterprise partner or client logo",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logo": { "type": "string" },
+        "industry": { "type": "string" },
+        "testimonial": { "type": "string" }
+      }
+    },
+    "Service": {
+      "title": "Service",
+      "description": "Enterprise service offering",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "icon": { "type": "string" },
+        "shortDesc": { "type": "string" },
+        "features": { "type": "array" }
+      }
+    }
+  },
+  "firestore": {
+    "/site_config/{configId}": {
+      "schema": "SiteConfig",
+      "description": "Global site configuration settings"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Case studies and projects"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Client list and testimonials"
+    },
+    "/services/{serviceId}": {
+      "schema": "Service",
+      "description": "Services offered"
+    }
+  }
+}
