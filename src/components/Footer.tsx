@@ -15,10 +15,18 @@ export const Footer: React.FC<FooterProps> = ({ siteConfig, onOpenAdminLogin }) 
           
           {/* Brand Info */}
           <div className="md:col-span-1 space-y-3">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
-                NG
-              </div>
+            <div className="flex items-center space-x-2.5">
+              {siteConfig.logoUrl ? (
+                <img 
+                  src={siteConfig.logoUrl} 
+                  alt={siteConfig.companyName} 
+                  className="w-9 h-9 rounded-lg object-contain bg-gray-900 border border-blue-500/30" 
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
+                  NG
+                </div>
+              )}
               <span className="font-bold text-white text-base">{siteConfig.companyName}</span>
             </div>
             <p className="text-gray-400 text-xs leading-relaxed">

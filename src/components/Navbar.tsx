@@ -34,10 +34,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img 
               src={siteConfig.logoUrl} 
               alt={siteConfig.companyName} 
-              className="w-10 h-10 rounded-lg object-cover border border-blue-500/30 group-hover:border-blue-400 transition" 
+              className="w-12 h-12 rounded-xl object-contain bg-gray-900/60 p-1 border border-blue-500/30 group-hover:border-blue-400 transition" 
             />
           ) : (
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-xl text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition">
               NG
             </div>
           )}

@@ -43,15 +43,19 @@ export default function App() {
     }
 
     // Local storage fallback for GitHub Pages static site
-    const savedSite = localStorage.getItem('ngd_site_config');
-    const savedProjects = localStorage.getItem('ngd_projects');
-    const savedClients = localStorage.getItem('ngd_clients');
-    const savedServices = localStorage.getItem('ngd_services');
+    try {
+      const savedSite = localStorage.getItem('ngd_site_config');
+      const savedProjects = localStorage.getItem('ngd_projects');
+      const savedClients = localStorage.getItem('ngd_clients');
+      const savedServices = localStorage.getItem('ngd_services');
 
-    if (savedSite) setSiteConfig(JSON.parse(savedSite));
-    if (savedProjects) setProjects(JSON.parse(savedProjects));
-    if (savedClients) setClients(JSON.parse(savedClients));
-    if (savedServices) setServices(JSON.parse(savedServices));
+      if (savedSite) setSiteConfig(JSON.parse(savedSite));
+      if (savedProjects) setProjects(JSON.parse(savedProjects));
+      if (savedClients) setClients(JSON.parse(savedClients));
+      if (savedServices) setServices(JSON.parse(savedServices));
+    } catch (e) {
+      console.warn('Could not parse localStorage cache, using default initial data', e);
+    }
   };
 
   // Verify Session Token from localStorage on mount
