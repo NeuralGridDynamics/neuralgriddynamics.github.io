@@ -7,14 +7,18 @@ on:
       - master
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v4
@@ -23,10 +27,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install Application Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build Web Application
         run: npm run build
@@ -38,7 +41,7 @@ jobs:
           ls -la dist/
           echo "Build completed successfully."
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages Branch
         uses: peaceiris/actions-gh-pages@v3
         if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         with:
@@ -46,3 +49,20 @@ jobs:
           publish_dir: ./dist
           enable_jekyll: false
           commit_message: "auto-deploy: Publish Neural Grid Dynamics build [skip ci]"
+
+      - name: Upload artifact for GitHub Actions Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy-actions-pages:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
