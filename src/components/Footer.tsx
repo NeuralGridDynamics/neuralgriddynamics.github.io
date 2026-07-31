@@ -20,10 +20,10 @@ export const Footer: React.FC<FooterProps> = ({ siteConfig, onOpenAdminLogin }) 
                 <img 
                   src={siteConfig.logoUrl} 
                   alt={siteConfig.companyName} 
-                  className="w-9 h-9 rounded-lg object-contain bg-gray-900 border border-blue-500/30" 
+                  className="w-[30px] h-[35px] rounded-lg object-contain bg-gray-900 border border-blue-500/30" 
                 />
               ) : (
-                <div className="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
+                <div className="w-[30px] h-[35px] rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
                   NG
                 </div>
               )}
