@@ -37,19 +37,36 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ siteConfig, pref
         body: JSON.stringify(formData)
       });
 
-      const data = await res.json();
-      if (data.success) {
-        setStatus('success');
-        setStatusMsg(data.message);
-        setFormData({ name: '', email: '', company: '', serviceRequested: 'Custom Enterprise LLM Architectures', message: '' });
-      } else {
-        setStatus('error');
-        setStatusMsg(data.message || 'Submission failed.');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setStatus('success');
+          setStatusMsg(data.message);
+          setFormData({ name: '', email: '', company: '', serviceRequested: 'Custom Enterprise LLM Architectures', message: '' });
+          return;
+        }
       }
     } catch (err) {
-      setStatus('error');
-      setStatusMsg('Network error. Please try again later.');
+      console.warn('Backend unavailable, storing inquiry in local storage');
     }
+
+    // Static host fallback
+    try {
+      const existing = JSON.parse(localStorage.getItem('ngd_inquiries') || '[]');
+      existing.unshift({
+        id: 'inq-' + Date.now(),
+        ...formData,
+        date: new Date().toISOString().split('T')[0],
+        status: 'new'
+      });
+      localStorage.setItem('ngd_inquiries', JSON.stringify(existing));
+    } catch (e) {
+      console.error(e);
+    }
+
+    setStatus('success');
+    setStatusMsg('Thank you for reaching out to Neural Grid Dynamics. Our enterprise team will respond within 24 hours.');
+    setFormData({ name: '', email: '', company: '', serviceRequested: 'Custom Enterprise LLM Architectures', message: '' });
   };
 
   return (

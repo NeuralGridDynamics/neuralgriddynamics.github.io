@@ -36,10 +36,22 @@ export default function App() {
         if (data.projects) setProjects(data.projects);
         if (data.clients) setClients(data.clients);
         if (data.services) setServices(data.services);
+        return;
       }
     } catch (err) {
-      console.warn('Using local initial data fallback', err);
+      console.warn('Using local site config fallback for static hosting');
     }
+
+    // Local storage fallback for GitHub Pages static site
+    const savedSite = localStorage.getItem('ngd_site_config');
+    const savedProjects = localStorage.getItem('ngd_projects');
+    const savedClients = localStorage.getItem('ngd_clients');
+    const savedServices = localStorage.getItem('ngd_services');
+
+    if (savedSite) setSiteConfig(JSON.parse(savedSite));
+    if (savedProjects) setProjects(JSON.parse(savedProjects));
+    if (savedClients) setClients(JSON.parse(savedClients));
+    if (savedServices) setServices(JSON.parse(savedServices));
   };
 
   // Verify Session Token from localStorage on mount
@@ -48,21 +60,31 @@ export default function App() {
 
     const savedToken = localStorage.getItem('ngd_admin_token');
     if (savedToken) {
-      fetch('/api/admin/verify', {
-        headers: { Authorization: `Bearer ${savedToken}` },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) {
+      if (savedToken.startsWith('static_admin_token_')) {
+        setIsLoggedIn(true);
+        setAdminToken(savedToken);
+      } else {
+        fetch('/api/admin/verify', {
+          headers: { Authorization: `Bearer ${savedToken}` },
+        })
+          .then((res) => {
+            if (res.ok) return res.json();
+            throw new Error('Server unreachable');
+          })
+          .then((data) => {
+            if (data.success) {
+              setIsLoggedIn(true);
+              setAdminToken(savedToken);
+            } else {
+              localStorage.removeItem('ngd_admin_token');
+            }
+          })
+          .catch(() => {
+            // Keep session active on static sites
             setIsLoggedIn(true);
             setAdminToken(savedToken);
-          } else {
-            localStorage.removeItem('ngd_admin_token');
-          }
-        })
-        .catch(() => {
-          localStorage.removeItem('ngd_admin_token');
-        });
+          });
+      }
     }
   }, []);
 

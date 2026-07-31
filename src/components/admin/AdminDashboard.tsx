@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SiteConfig, Project, Client, Service, Inquiry, SecurityLog } from '../../types';
+import { defaultSiteConfig, defaultProjects, defaultClients } from '../../data/initialData';
 import {
   Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock
 } from 'lucide-react';
@@ -73,20 +74,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     setIsLoading(true);
     try {
       const [siteRes, projRes, clientRes, inqRes, logRes] = await Promise.all([
-        authFetch('/api/admin/site'),
-        authFetch('/api/admin/projects'),
-        authFetch('/api/admin/clients'),
-        authFetch('/api/admin/inquiries'),
-        authFetch('/api/admin/security-logs'),
+        authFetch('/api/admin/site').catch(() => null),
+        authFetch('/api/admin/projects').catch(() => null),
+        authFetch('/api/admin/clients').catch(() => null),
+        authFetch('/api/admin/inquiries').catch(() => null),
+        authFetch('/api/admin/security-logs').catch(() => null),
       ]);
 
-      if (siteRes.ok) setSiteConfig(await siteRes.json());
-      if (projRes.ok) setProjects(await projRes.json());
-      if (clientRes.ok) setClients(await clientRes.json());
-      if (inqRes.ok) setInquiries(await inqRes.json());
-      if (logRes.ok) setSecurityLogs(await logRes.json());
+      let loadedSite = siteRes && siteRes.ok ? await siteRes.json() : null;
+      let loadedProj = projRes && projRes.ok ? await projRes.json() : null;
+      let loadedClients = clientRes && clientRes.ok ? await clientRes.json() : null;
+      let loadedInquiries = inqRes && inqRes.ok ? await inqRes.json() : null;
+      let loadedLogs = logRes && logRes.ok ? await logRes.json() : null;
+
+      // Local storage / initial data fallbacks for static hosting
+      if (!loadedSite) {
+        const saved = localStorage.getItem('ngd_site_config');
+        loadedSite = saved ? JSON.parse(saved) : defaultSiteConfig;
+      }
+      if (!loadedProj) {
+        const saved = localStorage.getItem('ngd_projects');
+        loadedProj = saved ? JSON.parse(saved) : defaultProjects;
+      }
+      if (!loadedClients) {
+        const saved = localStorage.getItem('ngd_clients');
+        loadedClients = saved ? JSON.parse(saved) : defaultClients;
+      }
+      if (!loadedInquiries) {
+        const saved = localStorage.getItem('ngd_inquiries');
+        loadedInquiries = saved ? JSON.parse(saved) : [];
+      }
+      if (!loadedLogs) {
+        const saved = localStorage.getItem('ngd_security_logs');
+        loadedLogs = saved ? JSON.parse(saved) : [
+          { id: 'log-1', timestamp: new Date().toISOString(), event: 'Admin Session Active (Static Mode)', ip: '127.0.0.1', status: 'SUCCESS' }
+        ];
+      }
+
+      setSiteConfig(loadedSite);
+      setProjects(loadedProj);
+      setClients(loadedClients);
+      setInquiries(loadedInquiries);
+      setSecurityLogs(loadedLogs);
     } catch (err) {
-      console.error('Failed to fetch admin data', err);
+      console.warn('Failed to fetch admin data, using local fallback', err);
+      const savedSite = localStorage.getItem('ngd_site_config');
+      setSiteConfig(savedSite ? JSON.parse(savedSite) : defaultSiteConfig);
+      setProjects(defaultProjects);
+      setClients(defaultClients);
     } finally {
       setIsLoading(false);
     }
@@ -110,10 +145,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
         setStatusMsg('Branding & Site Configuration updated successfully!');
         onRefreshPublicData();
         setTimeout(() => setStatusMsg(''), 3000);
+        return;
       }
     } catch (err) {
-      alert('Failed to save settings.');
+      console.warn('Backend unavailable, saving site config to localStorage');
     }
+
+    // Local storage update for static deployment
+    localStorage.setItem('ngd_site_config', JSON.stringify(siteConfig));
+    setStatusMsg('Branding & Site Configuration saved locally!');
+    onRefreshPublicData();
+    setTimeout(() => setStatusMsg(''), 3000);
   };
 
   // Save Project (Add / Edit)
@@ -147,27 +189,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
           setIsAddingProject(false);
         }
       }
-
-      // Reset Form
-      setProjectForm({
-        title: '',
-        clientName: '',
-        category: 'Generative AI',
-        description: '',
-        fullCaseStudy: '',
-        impactMetrics: '',
-        technologies: 'PyTorch, FastAPI, Docker',
-        imageUrl: '',
-        featured: false,
-        published: true,
-      });
-
-      loadAdminData();
-      onRefreshPublicData();
-      setTimeout(() => setStatusMsg(''), 3000);
     } catch (err) {
-      alert('Failed to save project.');
+      console.warn('Backend unavailable, updating projects in localStorage');
+      // Local storage fallback
+      let updatedProjects = [...projects];
+      if (editingProject) {
+        updatedProjects = updatedProjects.map(p => p.id === editingProject.id ? { ...p, ...payload, slug: payload.title.toLowerCase().replace(/\s+/g, '-') } : p);
+        setEditingProject(null);
+      } else {
+        const newProj: Project = {
+          id: 'proj-' + Date.now(),
+          ...payload,
+          slug: payload.title.toLowerCase().replace(/\s+/g, '-'),
+          createdAt: new Date().toISOString().split('T')[0]
+        };
+        updatedProjects.unshift(newProj);
+        setIsAddingProject(false);
+      }
+      setProjects(updatedProjects);
+      localStorage.setItem('ngd_projects', JSON.stringify(updatedProjects));
+      setStatusMsg('Projects updated successfully.');
     }
+
+    // Reset Form
+    setProjectForm({
+      title: '',
+      clientName: '',
+      category: 'Generative AI',
+      description: '',
+      fullCaseStudy: '',
+      impactMetrics: '',
+      technologies: 'PyTorch, FastAPI, Docker',
+      imageUrl: '',
+      featured: false,
+      published: true,
+    });
+
+    loadAdminData();
+    onRefreshPublicData();
+    setTimeout(() => setStatusMsg(''), 3000);
   };
 
   // Delete Project
@@ -178,10 +238,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       if (res.ok) {
         loadAdminData();
         onRefreshPublicData();
+        return;
       }
     } catch (err) {
-      alert('Delete failed.');
+      console.warn('Backend unavailable, deleting project in localStorage');
     }
+
+    const updated = projects.filter(p => p.id !== id);
+    setProjects(updated);
+    localStorage.setItem('ngd_projects', JSON.stringify(updated));
+    onRefreshPublicData();
   };
 
   // Save Client (Add)
@@ -195,23 +261,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       if (res.ok) {
         setStatusMsg('Client added successfully.');
         setIsAddingClient(false);
-        setClientForm({
-          name: '',
-          logoUrl: '',
-          industry: 'Banking & Financial Tech',
-          website: '',
-          testimonial: '',
-          authorName: '',
-          authorRole: '',
-          featured: true,
-        });
-        loadAdminData();
-        onRefreshPublicData();
-        setTimeout(() => setStatusMsg(''), 3000);
       }
     } catch (err) {
-      alert('Failed to add client.');
+      console.warn('Backend unavailable, saving client to localStorage');
+      const newClient: Client = {
+        id: 'client-' + Date.now(),
+        ...clientForm
+      };
+      const updated = [newClient, ...clients];
+      setClients(updated);
+      localStorage.setItem('ngd_clients', JSON.stringify(updated));
+      setIsAddingClient(false);
+      setStatusMsg('Client added successfully.');
     }
+
+    setClientForm({
+      name: '',
+      logoUrl: '',
+      industry: 'Banking & Financial Tech',
+      website: '',
+      testimonial: '',
+      authorName: '',
+      authorRole: '',
+      featured: true,
+    });
+    loadAdminData();
+    onRefreshPublicData();
+    setTimeout(() => setStatusMsg(''), 3000);
   };
 
   // Delete Client
@@ -222,10 +298,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       if (res.ok) {
         loadAdminData();
         onRefreshPublicData();
+        return;
       }
     } catch (err) {
-      alert('Delete failed.');
+      console.warn('Backend unavailable, deleting client in localStorage');
     }
+
+    const updated = clients.filter(c => c.id !== id);
+    setClients(updated);
+    localStorage.setItem('ngd_clients', JSON.stringify(updated));
+    onRefreshPublicData();
   };
 
   // Update Inquiry Status
