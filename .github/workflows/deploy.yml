@@ -37,7 +37,7 @@ jobs:
       - name: Verify Export Build Artifacts
         run: |
           touch dist/.nojekyll
-          cp dist/index.html dist/404.html || true
+          [ -f dist/404.html ] || cp dist/index.html dist/404.html
           ls -la dist/
           echo "Build completed successfully."
 
