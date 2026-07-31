@@ -33,12 +33,14 @@ jobs:
 
       - name: Verify Export Build Artifacts
         run: |
+          touch dist/.nojekyll
+          cp dist/index.html dist/404.html || true
           ls -la dist/
           echo "Build completed successfully."
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
-        if: ${{ github.event_name == 'push' }}
+        if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, ShieldAlert, KeyRound, X, CheckCircle2, Terminal } from 'lucide-react';
+import { Lock, ShieldAlert, KeyRound, X } from 'lucide-react';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface AdminLoginModalProps {
 }
 
 export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
-  const [username, setUsername] = useState('admin');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -65,18 +65,6 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ isOpen, onClos
           <p className="text-xs text-gray-400 mt-1">
             Restricted access for website content managers & administrators.
           </p>
-        </div>
-
-        {/* Security Warning Box */}
-        <div className="p-3 bg-blue-950/40 border border-blue-800/40 rounded-xl mb-6 text-xs text-blue-300 font-mono flex items-start space-x-2">
-          <Terminal className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold text-white">Default Admin Credentials:</span>
-            <br />
-            Username: <code className="text-blue-300 font-bold">admin</code>
-            <br />
-            Password: <code className="text-emerald-400 font-bold">NeuralGrid2026!</code>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
