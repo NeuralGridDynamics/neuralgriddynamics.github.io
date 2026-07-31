@@ -200,59 +200,139 @@ app.post('/api/public/inquiry', (req, res) => {
   res.json({ success: true, message: 'Thank you for reaching out to Neural Grid Dynamics. Our enterprise team will respond within 24 hours.' });
 });
 
-// 3. AI Project Scope & Architecture Estimator
+// 3. AI Project Scope & Architecture Estimator (OpenAI / Gemini / Free Engine)
 app.post('/api/public/ai-estimator', async (req, res) => {
-  const { projectScope, industry, targetTech } = req.body;
+  const { projectScope, industry, targetTech, deploymentMode, openaiKey, chatHistory } = req.body;
 
-  if (!projectScope) {
+  if (!projectScope && (!chatHistory || chatHistory.length === 0)) {
     return res.status(400).json({ success: false, message: 'Please describe your project requirements.' });
   }
 
-  const client = getGeminiClient();
+  const promptText = projectScope || (chatHistory && chatHistory[chatHistory.length - 1]?.text) || 'AI Architecture Request';
+  const effectiveOpenAIKey = (openaiKey && typeof openaiKey === 'string' && openaiKey.trim())
+    ? openaiKey.trim()
+    : process.env.OPENAI_API_KEY;
 
+  const systemPrompt = `You are the Lead Systems Architect at Neural Grid Dynamics, a premier enterprise AI engineering firm.
+Analyze the user's project request and provide a detailed, highly specific solution architecture response.
+
+System Parameters & Category:
+- Industry Sector: ${industry || 'General Enterprise'}
+- Target System Category / Tech Domain: ${targetTech || 'Generative AI & Enterprise LLM'}
+- Deployment Mode: ${deploymentMode || 'Hybrid Cloud & Air-Gapped Edge'}
+- Project Scope / User Message: ${promptText}
+
+Return strictly valid JSON with this exact schema:
+{
+  "reply": "Clear, professional 2-3 paragraph inline explanation addressing the user's exact scope, parameters, technical trade-offs, hardware/model recommendations, and answers to any specific questions asked.",
+  "estimation": {
+    "recommendedArchitecture": "High level architecture blueprint tailored to " + ${JSON.stringify(industry || 'Enterprise')} + " and " + ${JSON.stringify(targetTech || 'AI Solution')},
+    "estimatedTimeline": "Realistic timeline range, e.g., '6 - 10 Weeks'",
+    "recommendedStack": ["4-6 specific tech tools/models e.g. PyTorch, vLLM, Qdrant, FastAPI, CUDA, Ray, Docker"],
+    "keyDeliverables": ["4 key milestone deliverables tailored specifically to the scope"],
+    "securityCompliance": "Detailed security & compliance features e.g. SOC-2, HIPAA, ISO27001, RBAC, air-gapped zero data retention"
+  }
+}`;
+
+  // 1. Try OpenAI if API key provided or present in env
+  if (effectiveOpenAIKey) {
+    try {
+      const openAiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${effectiveOpenAIKey}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Industry: ${industry}\nTech Domain: ${targetTech}\nDeployment: ${deploymentMode}\nScope: ${promptText}` }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.7
+        })
+      });
+
+      if (openAiRes.ok) {
+        const data: any = await openAiRes.json();
+        const contentStr = data.choices?.[0]?.message?.content;
+        if (contentStr) {
+          const parsed = JSON.parse(contentStr);
+          return res.json({
+            success: true,
+            provider: 'OpenAI',
+            reply: parsed.reply || 'Here is your custom AI Architecture blueprint:',
+            estimation: parsed.estimation || parsed
+          });
+        }
+      } else {
+        const errJson = await openAiRes.text();
+        console.warn('OpenAI API request failed:', errJson);
+      }
+    } catch (openAiErr) {
+      console.warn('OpenAI API error, trying fallback:', openAiErr);
+    }
+  }
+
+  // 2. Try Gemini API
+  const client = getGeminiClient();
   if (client) {
     try {
       const response = await client.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: `You are the Chief AI Architect at Neural Grid Dynamics, a top-tier AI software house like NetSol or Systems Ltd.
-Analyze the following client project request and provide a structured JSON response:
-Industry: ${industry || 'Technology'}
-Required Tech: ${targetTech || 'AI & Cloud'}
-Request: ${projectScope}
-
-Return strictly valid JSON with this exact schema:
-{
-  "recommendedArchitecture": "string summary of model stack & deployment",
-  "estimatedTimeline": "e.g. 6-10 Weeks",
-  "recommendedStack": ["list of 4-6 specific modern tools/models like PyTorch, Llama-3, Ray, CUDA, FastAPI, etc."],
-  "keyDeliverables": ["3-4 high level engineering deliverables"],
-  "securityCompliance": "string summary of air-gapped or RBAC features"
-}`
+        contents: systemPrompt
       });
 
       const text = response.text || '';
       const cleanJsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJsonStr);
-      return res.json({ success: true, estimation: parsed });
+      return res.json({
+        success: true,
+        provider: 'Gemini',
+        reply: parsed.reply || 'Custom AI Solution Architecture generated by Neural Grid AI:',
+        estimation: parsed.estimation || parsed
+      });
     } catch (err) {
       console.warn('Gemini estimation fallback triggered:', err);
     }
   }
 
-  // High quality algorithmic fallback
+  // 3. High quality Free AI Engine Fallback (Zero API key required)
+  const isLLm = (targetTech || '').includes('LLM') || (targetTech || '').includes('Generative');
+  const isAgent = (targetTech || '').includes('Multi-Agent');
+  const isVision = (targetTech || '').includes('Vision');
+  const isPrediction = (targetTech || '').includes('Time-Series') || (targetTech || '').includes('Predictive');
+
+  let dynamicStack = ['PyTorch 2.3', 'FastAPI Microservices', 'Qdrant Vector DB', 'vLLM Engine', 'Kubernetes'];
+  if (isLLm) dynamicStack = ['vLLM / TensorRT-LLM', 'Qdrant / Milvus Vector Index', 'Llama 3 / DeepSeek Private Model', 'LangChain / LlamaIndex', 'FastAPI', 'Docker Containerization'];
+  else if (isAgent) dynamicStack = ['LangGraph / AutoGen Framework', 'Redis State Bus', 'FastAPI Tool Sandbox', 'PostgreSQL Vector', 'Docker / Kubernetes'];
+  else if (isVision) dynamicStack = ['YOLOv9 / RT-DETR', 'OpenCV / CUDA 12.2', 'TensorRT Edge Engine', 'DeepStream SDK', 'GStreamer Pipeline'];
+  else if (isPrediction) dynamicStack = ['Neural Prophet / TFT Transformer', 'TimescaleDB / InfluxDB', 'Ray Distributed Training', 'FastAPI', 'Grafana Monitoring'];
+
+  let dynamicTimeline = '6 - 10 Weeks';
+  if ((promptText || '').length > 200) dynamicTimeline = '8 - 12 Weeks';
+
   res.json({
     success: true,
+    provider: 'Free Engine',
+    reply: `Based on your request in the **${industry || 'Enterprise'}** sector under the **${targetTech || 'AI Architecture'}** category, Neural Grid Dynamics recommends an air-gapped, modular microservices design.
+
+Key System Highlights for your scope ("${promptText.slice(0, 120)}${promptText.length > 120 ? '...' : ''}"):
+1. **Model & Inference Layer**: Quantized pipeline optimized for low-latency queries with dedicated CUDA compute nodes.
+2. **Data Isolation**: Air-gapped network configuration ensuring zero external data leakage and full ${industry || 'industry'} regulatory compliance.
+3. **Scalability**: Multi-replica Kubernetes deployment capable of auto-scaling under peak user loads.`,
     estimation: {
-      recommendedArchitecture: `Custom ${targetTech || 'Multi-Agent Neural Grid'} with private RAG vector index & air-gapped security guardrails.`,
-      estimatedTimeline: '8 - 12 Weeks',
-      recommendedStack: ['PyTorch 2.3', 'FastAPI Microservices', 'Qdrant Vector Database', 'vLLM Inference Engine', 'Kubernetes Edge'],
+      recommendedArchitecture: `Air-Gapped ${targetTech || 'Neural Pipeline'} with tailored private data connectors & automated audit logs for ${industry || 'Enterprise'}.`,
+      estimatedTimeline: dynamicTimeline,
+      recommendedStack: dynamicStack,
       keyDeliverables: [
-        'Production Fine-Tuned Model Weights & Quantized Pipeline',
-        'Air-Gapped Enterprise REST & WebSocket API Suite',
-        'Automated MLOps Retraining & Drift Monitoring Dashboard',
-        'ISO 27001 & SOC-2 Compliance Audit Package'
+        `Production Fine-Tuned Model & ${targetTech || 'AI Core'} Pipeline`,
+        `High-Performance REST & WebSocket Microservices API`,
+        `Real-Time Telemetry & MLOps Drift Detection Dashboard`,
+        `Full Security Audit Package & Operator Training Manual`
       ],
-      securityCompliance: 'Role-Based Access Control (RBAC), end-to-end TLS 1.3 encryption, and optional on-premise hardware deployment.'
+      securityCompliance: `Role-Based Access Control (RBAC), end-to-end TLS 1.3 encryption, and ${deploymentMode || 'air-gapped deployment'} compliance.`
     }
   });
 });
