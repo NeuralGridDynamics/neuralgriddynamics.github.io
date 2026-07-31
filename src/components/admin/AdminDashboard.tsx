@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SiteConfig, Project, Client, Service, Inquiry, SecurityLog } from '../../types';
 import { defaultSiteConfig, defaultProjects, defaultClients } from '../../data/initialData';
+import { ImageUploader } from './ImageUploader';
 import {
   Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock
 } from 'lucide-react';
@@ -505,18 +506,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-300 mb-1">Company Logo Image URL</label>
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={siteConfig.logoUrl}
-                    onChange={(e) => setSiteConfig({ ...siteConfig, logoUrl: e.target.value })}
-                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:border-blue-500 focus:outline-none"
-                  />
-                  {siteConfig.logoUrl && (
-                    <img src={siteConfig.logoUrl} alt="Logo Preview" className="w-10 h-10 rounded-lg object-cover border border-gray-700" />
-                  )}
-                </div>
+                <ImageUploader
+                  label="Company Logo Image"
+                  value={siteConfig.logoUrl}
+                  onChange={(newUrl) => setSiteConfig({ ...siteConfig, logoUrl: newUrl })}
+                  helpText="Upload a logo from your local computer (PNG, SVG, JPG) or enter an image URL."
+                />
               </div>
             </div>
 
@@ -757,13 +752,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Cover Image URL</label>
-                    <input
-                      type="text"
+                    <ImageUploader
+                      label="Cover Image"
                       value={projectForm.imageUrl}
-                      onChange={(e) => setProjectForm({ ...projectForm, imageUrl: e.target.value })}
-                      placeholder="https://images.unsplash.com/..."
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white"
+                      onChange={(newUrl) => setProjectForm({ ...projectForm, imageUrl: newUrl })}
+                      helpText="Upload a project cover or diagram from your local computer."
                     />
                   </div>
                 </div>
@@ -923,13 +916,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Logo URL</label>
-                    <input
-                      type="text"
+                    <ImageUploader
+                      label="Client Logo Image"
                       value={clientForm.logoUrl}
-                      onChange={(e) => setClientForm({ ...clientForm, logoUrl: e.target.value })}
-                      placeholder="https://images.unsplash.com/..."
-                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white"
+                      onChange={(newUrl) => setClientForm({ ...clientForm, logoUrl: newUrl })}
+                      helpText="Upload the client company logo from your local computer."
                     />
                   </div>
 
