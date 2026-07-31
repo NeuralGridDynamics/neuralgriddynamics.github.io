@@ -3,7 +3,7 @@ import { SiteConfig, Project, Client, Service, Inquiry, SecurityLog } from '../.
 import { defaultSiteConfig, defaultProjects, defaultClients } from '../../data/initialData';
 import { ImageUploader } from './ImageUploader';
 import {
-  Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock
+  Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock, Sliders, MoveLeft, MoveRight, Layout
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -512,6 +512,194 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
                   onChange={(newUrl) => setSiteConfig({ ...siteConfig, logoUrl: newUrl })}
                   helpText="Upload a logo from your local computer (PNG, SVG, JPG) or enter an image URL."
                 />
+              </div>
+            </div>
+
+            {/* Logo Dimensions & Location Customization Panel */}
+            <div className="bg-gray-950/80 border border-gray-800 rounded-2xl p-5 space-y-5">
+              <div className="flex items-center justify-between border-b border-gray-800/80 pb-3">
+                <div className="flex items-center space-x-2">
+                  <div className="p-1.5 bg-blue-950/60 text-blue-400 rounded-lg border border-blue-800/40">
+                    <Sliders className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-white uppercase tracking-wider">Logo Size & Location Options</h3>
+                    <p className="text-[11px] text-gray-400">Customize the exact dimensions (width x height) and layout position of your brand logo.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Logo Width */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-gray-300">Logo Width (px)</label>
+                    <span className="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/40">
+                      {siteConfig.logoWidth || 30}px
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="range"
+                      min="15"
+                      max="120"
+                      value={siteConfig.logoWidth || 30}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoWidth: parseInt(e.target.value) || 30 })}
+                      className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <input
+                      type="number"
+                      min="15"
+                      max="150"
+                      value={siteConfig.logoWidth || 30}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoWidth: parseInt(e.target.value) || 30 })}
+                      className="w-16 bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-white text-center focus:border-blue-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Logo Height */}
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-semibold text-gray-300">Logo Height (px)</label>
+                    <span className="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/40">
+                      {siteConfig.logoHeight || 35}px
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="range"
+                      min="15"
+                      max="120"
+                      value={siteConfig.logoHeight || 35}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoHeight: parseInt(e.target.value) || 35 })}
+                      className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                    <input
+                      type="number"
+                      min="15"
+                      max="150"
+                      value={siteConfig.logoHeight || 35}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoHeight: parseInt(e.target.value) || 35 })}
+                      className="w-16 bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-white text-center focus:border-blue-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Logo Position / Location */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-gray-300">Logo Location</label>
+                  <div className="grid grid-cols-3 gap-1.5 bg-gray-900 p-1 rounded-xl border border-gray-800 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setSiteConfig({ ...siteConfig, logoPosition: 'left' })}
+                      className={`py-1.5 px-2 rounded-lg font-medium transition flex items-center justify-center space-x-1 ${
+                        (siteConfig.logoPosition || 'left') === 'left'
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                      title="Logo to the left of brand name"
+                    >
+                      <MoveLeft className="w-3 h-3" />
+                      <span>Left</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSiteConfig({ ...siteConfig, logoPosition: 'right' })}
+                      className={`py-1.5 px-2 rounded-lg font-medium transition flex items-center justify-center space-x-1 ${
+                        siteConfig.logoPosition === 'right'
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                      title="Logo to the right of brand name"
+                    >
+                      <MoveRight className="w-3 h-3" />
+                      <span>Right</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSiteConfig({ ...siteConfig, logoPosition: 'top' })}
+                      className={`py-1.5 px-2 rounded-lg font-medium transition flex items-center justify-center space-x-1 ${
+                        siteConfig.logoPosition === 'top'
+                          ? 'bg-blue-600 text-white shadow'
+                          : 'text-gray-400 hover:text-white'
+                      }`}
+                      title="Logo stacked above brand name"
+                    >
+                      <Layout className="w-3 h-3" />
+                      <span>Top</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Dimension Presets */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-900">
+                <span className="text-[11px] text-gray-400 font-medium">Dimension Presets:</span>
+                {[
+                  { label: '30×35 (Default)', w: 30, h: 35 },
+                  { label: '24×28 (Compact)', w: 24, h: 28 },
+                  { label: '40×45 (Medium)', w: 40, h: 45 },
+                  { label: '50×55 (Large)', w: 50, h: 55 },
+                  { label: '40×40 (Square)', w: 40, h: 40 },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setSiteConfig({ ...siteConfig, logoWidth: preset.w, logoHeight: preset.h })}
+                    className="px-2.5 py-1 bg-gray-900 hover:bg-gray-800 text-[10px] text-gray-300 font-mono rounded-lg border border-gray-800 transition"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Live Preview Header Box */}
+              <div className="bg-gray-900/90 border border-gray-800 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-mono uppercase text-gray-400">
+                  <span>Live Brand Header Preview</span>
+                  <span className="text-blue-400">Pos: {siteConfig.logoPosition || 'left'} | Size: {siteConfig.logoWidth || 30}×{siteConfig.logoHeight || 35}px</span>
+                </div>
+                <div className="p-3.5 bg-gray-950 rounded-lg border border-gray-800/80">
+                  <div
+                    className={
+                      (siteConfig.logoPosition || 'left') === 'right'
+                        ? 'flex items-center space-x-3 flex-row-reverse space-x-reverse'
+                        : (siteConfig.logoPosition === 'top')
+                        ? 'flex flex-col items-start space-y-1.5'
+                        : 'flex items-center space-x-3'
+                    }
+                  >
+                    {siteConfig.logoUrl ? (
+                      <img
+                        src={siteConfig.logoUrl}
+                        alt="Preview"
+                        style={{ width: `${siteConfig.logoWidth || 30}px`, height: `${siteConfig.logoHeight || 35}px` }}
+                        className="rounded-lg object-contain bg-gray-900 p-0.5 border border-blue-500/30 flex-shrink-0"
+                      />
+                    ) : (
+                      <div
+                        style={{ width: `${siteConfig.logoWidth || 30}px`, height: `${siteConfig.logoHeight || 35}px` }}
+                        className="rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-xs text-white flex-shrink-0"
+                      >
+                        NG
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-extrabold text-white">
+                          {siteConfig.companyName || 'Neural Grid Dynamics'}
+                        </span>
+                        <span className="px-1.5 py-0.5 text-[9px] font-mono uppercase bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded">
+                          AI Enterprise
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 line-clamp-1 font-medium">
+                        {siteConfig.tagline || 'Enterprise AI Engineering & Autonomous Grid Intelligence'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 

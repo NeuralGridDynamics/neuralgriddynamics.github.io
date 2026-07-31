@@ -9,6 +9,9 @@ export interface SiteConfig {
   companyName: string;
   tagline: string;
   logoUrl: string;
+  logoWidth?: number;
+  logoHeight?: number;
+  logoPosition?: 'left' | 'right' | 'top';
   heroHeadline: string;
   heroSubhead: string;
   contactEmail: string;

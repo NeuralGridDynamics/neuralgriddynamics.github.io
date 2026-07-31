@@ -15,20 +15,39 @@ export const Footer: React.FC<FooterProps> = ({ siteConfig, onOpenAdminLogin }) 
           
           {/* Brand Info */}
           <div className="md:col-span-1 space-y-3">
-            <div className="flex items-center space-x-2.5">
-              {siteConfig.logoUrl ? (
-                <img 
-                  src={siteConfig.logoUrl} 
-                  alt={siteConfig.companyName} 
-                  className="w-[30px] h-[35px] rounded-lg object-contain bg-gray-900 border border-blue-500/30" 
-                />
-              ) : (
-                <div className="w-[30px] h-[35px] rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs">
-                  NG
+            {(() => {
+              const w = siteConfig.logoWidth || 30;
+              const h = siteConfig.logoHeight || 35;
+              const pos = siteConfig.logoPosition || 'left';
+
+              let footerContainerClass = "flex items-center space-x-2.5";
+              if (pos === 'right') {
+                footerContainerClass = "flex items-center space-x-2.5 flex-row-reverse space-x-reverse";
+              } else if (pos === 'top') {
+                footerContainerClass = "flex flex-col items-start space-y-1.5";
+              }
+
+              return (
+                <div className={footerContainerClass}>
+                  {siteConfig.logoUrl ? (
+                    <img 
+                      src={siteConfig.logoUrl} 
+                      alt={siteConfig.companyName} 
+                      style={{ width: `${w}px`, height: `${h}px` }}
+                      className="rounded-lg object-contain bg-gray-900 border border-blue-500/30 flex-shrink-0" 
+                    />
+                  ) : (
+                    <div 
+                      style={{ width: `${w}px`, height: `${h}px` }}
+                      className="rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0"
+                    >
+                      NG
+                    </div>
+                  )}
+                  <span className="font-bold text-white text-base">{siteConfig.companyName}</span>
                 </div>
-              )}
-              <span className="font-bold text-white text-base">{siteConfig.companyName}</span>
-            </div>
+              );
+            })()}
             <p className="text-gray-400 text-xs leading-relaxed">
               {siteConfig.tagline}
             </p>
