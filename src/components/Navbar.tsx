@@ -1,6 +1,6 @@
 import React from 'react';
 import { SiteConfig } from '../types';
-import { ShieldCheck, Lock, Sparkles, Terminal, LogOut, CheckCircle } from 'lucide-react';
+import { ShieldCheck, Lock, Sparkles, Terminal, LogOut, CheckCircle, FileText } from 'lucide-react';
 
 interface NavbarProps {
   siteConfig: SiteConfig;
@@ -10,6 +10,7 @@ interface NavbarProps {
   onOpenLogin: () => void;
   onLogout: () => void;
   onOpenEstimator: () => void;
+  onOpenQuotation?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,8 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         
         {/* Brand Logo & Name */}
         {(() => {
-          const w = siteConfig.logoWidth || 30;
-          const h = siteConfig.logoHeight || 35;
+          const w = siteConfig.logoWidth || 120;
+          const h = siteConfig.logoHeight || 80;
           const pos = siteConfig.logoPosition || 'left';
 
           let containerClass = "flex items-center space-x-3 text-left group focus:outline-none";
@@ -47,6 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <img 
                   src={siteConfig.logoUrl} 
                   alt={siteConfig.companyName} 
+                  loading="eager"
                   style={{ width: `${w}px`, height: `${h}px` }}
                   className="rounded-lg object-contain bg-gray-900/60 p-0.5 border border-blue-500/30 group-hover:border-blue-400 transition flex-shrink-0" 
                 />
@@ -104,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Action Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
           
           {/* AI Estimator Button */}
           <button

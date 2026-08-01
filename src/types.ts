@@ -18,7 +18,13 @@ export interface SiteConfig {
   contactPhone: string;
   address: string;
   stats: SiteStats;
-  themeMode: 'dark' | 'light';
+  themeMode: 'dark' | 'light' | 'custom';
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  textColor?: string;
+  cardBgColor?: string;
+  headerBgColor?: string;
 }
 
 export interface Project {
@@ -47,6 +53,9 @@ export interface Client {
   authorName: string;
   authorRole: string;
   featured: boolean;
+  email?: string;
+  phone?: string;
+  address?: string;
 }
 
 export interface Service {
@@ -88,4 +97,70 @@ export interface AdminAuthResponse {
   token?: string;
   username?: string;
   message?: string;
+}
+
+export interface QuotationLineItem {
+  id: string;
+  description: string;
+  hoursOrQty: number;
+  rate: number;
+  amount: number;
+}
+
+export interface QuotationData {
+  quotationNumber: string;
+  issueDate: string;
+  validUntil: string;
+  companyName: string;
+  companyLogoUrl: string;
+  companyAddress: string;
+  companyEmail: string;
+  companyPhone: string;
+  companyTaxId: string;
+  clientName: string;
+  clientCompany: string;
+  clientEmail: string;
+  clientAddress: string;
+  projectTitle: string;
+  systemPurpose: string;
+  industrySector: string;
+  systemCategory: string;
+  deploymentMode: string;
+  estimatedTimeline: string;
+  items: QuotationLineItem[];
+  subtotal: number;
+  taxRatePercent: number;
+  taxAmount: number;
+  totalAmount: number;
+  currency: string;
+  techStack: string[];
+  deliverables: string[];
+  mainFeatures: string[];
+  termsAndConditions: string;
+  paymentTerms: string;
+  signatoryName: string;
+  signatoryTitle: string;
+  signatureDataUrl?: string;
+  signatureDate: string;
+}
+
+export interface QuotationRequest {
+  id: string;
+  clientName: string;
+  clientCompany: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientAddress: string;
+  industrySector: string;
+  systemCategory: string;
+  projectTitle: string;
+  systemPurpose: string;
+  estimatedTimeline: string;
+  techStack: string[];
+  deliverables: string[];
+  mainFeatures: string[];
+  estimatedSubtotal: number;
+  status: 'Pending Review' | 'Quotation Prepared' | 'Approved & Emailed';
+  createdAt: string;
+  quotationData?: QuotationData;
 }

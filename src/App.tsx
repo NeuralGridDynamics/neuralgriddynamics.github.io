@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SiteConfig, Project, Client, Service } from './types';
+import { SiteConfig, Project, Client, Service, QuotationData } from './types';
+import { ThemeStyleInjector } from './components/ThemeStyleInjector';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { SolutionsMatrix } from './components/SolutionsMatrix';
@@ -9,6 +10,8 @@ import { ContactSection } from './components/ContactSection';
 import { Footer } from './components/Footer';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { AiEstimatorModal } from './components/AiEstimatorModal';
+import { QuotationModal } from './components/QuotationModal';
+import { ClientDetailsModal } from './components/ClientDetailsModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { defaultSiteConfig, defaultProjects, defaultClients, defaultServices } from './data/initialData';
 import {
@@ -19,10 +22,46 @@ import {
 } from './lib/firebase';
 
 export default function App() {
-  const [siteConfig, setSiteConfig] = useState<SiteConfig>(defaultSiteConfig);
-  const [projects, setProjects] = useState<Project[]>(defaultProjects);
-  const [clients, setClients] = useState<Client[]>(defaultClients);
-  const [services, setServices] = useState<Service[]>(defaultServices);
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => {
+    try {
+      const savedSite = localStorage.getItem('ngd_site_config');
+      if (savedSite) {
+        const parsed = JSON.parse(savedSite);
+        return {
+          ...defaultSiteConfig,
+          ...parsed,
+          stats: {
+            ...defaultSiteConfig.stats,
+            ...(parsed.stats || {}),
+          },
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to parse cached siteConfig', e);
+    }
+    return defaultSiteConfig;
+  });
+  const [projects, setProjects] = useState<Project[]>(() => {
+    try {
+      const saved = localStorage.getItem('ngd_projects');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return defaultProjects;
+  });
+  const [clients, setClients] = useState<Client[]>(() => {
+    try {
+      const saved = localStorage.getItem('ngd_clients');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return defaultClients;
+  });
+  const [services, setServices] = useState<Service[]>(() => {
+    try {
+      const saved = localStorage.getItem('ngd_services');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return defaultServices;
+  });
 
   const [currentView, setCurrentView] = useState<'public' | 'admin'>('public');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,20 +69,33 @@ export default function App() {
 
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isEstimatorOpen, setIsEstimatorOpen] = useState(false);
+  const [isQuotationOpen, setIsQuotationOpen] = useState(false);
+  const [isClientDetailsOpen, setIsClientDetailsOpen] = useState(false);
+  const [clientDetailsSpecs, setClientDetailsSpecs] = useState<any>(null);
+  const [quotationInitialData, setQuotationInitialData] = useState<Partial<QuotationData> | undefined>(undefined);
   const [prefillService, setPrefillService] = useState<string>('');
+
+  const handleOpenQuotation = (initialData?: Partial<QuotationData>) => {
+    setQuotationInitialData(initialData);
+    setIsQuotationOpen(true);
+  };
 
   // Subscribe to Cloud Firestore Realtime Updates (Sync across all devices & browsers)
   useEffect(() => {
     const unsubSite = subscribeToSiteConfig((cloudSite) => {
       if (cloudSite) {
-        setSiteConfig({
+        const merged: SiteConfig = {
           ...defaultSiteConfig,
           ...cloudSite,
           stats: {
             ...defaultSiteConfig.stats,
             ...(cloudSite.stats || {}),
           },
-        });
+        };
+        setSiteConfig(merged);
+        try {
+          localStorage.setItem('ngd_site_config', JSON.stringify(merged));
+        } catch (e) {}
       }
     });
 
@@ -79,7 +131,20 @@ export default function App() {
       const res = await fetch('/api/public/site');
       if (res.ok) {
         const data = await res.json();
-        if (data.siteConfig) setSiteConfig(data.siteConfig);
+        if (data.siteConfig) {
+          const merged: SiteConfig = {
+            ...defaultSiteConfig,
+            ...data.siteConfig,
+            stats: {
+              ...defaultSiteConfig.stats,
+              ...(data.siteConfig.stats || {}),
+            },
+          };
+          setSiteConfig(merged);
+          try {
+            localStorage.setItem('ngd_site_config', JSON.stringify(merged));
+          } catch (e) {}
+        }
         if (data.projects) setProjects(data.projects);
         if (data.clients) setClients(data.clients);
         if (data.services) setServices(data.services);
@@ -183,6 +248,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 font-sans selection:bg-blue-600 selection:text-white">
+      <ThemeStyleInjector siteConfig={siteConfig} />
       
       {/* Top Header Navbar */}
       <Navbar
@@ -207,6 +273,7 @@ export default function App() {
           token={adminToken}
           onLogout={handleLogout}
           onRefreshPublicData={fetchPublicData}
+          onOpenQuotation={handleOpenQuotation}
         />
       ) : (
         <main>
@@ -258,6 +325,29 @@ export default function App() {
       <AiEstimatorModal
         isOpen={isEstimatorOpen}
         onClose={() => setIsEstimatorOpen(false)}
+        onRequestClientDetails={(specs) => {
+          setClientDetailsSpecs(specs);
+          setIsClientDetailsOpen(true);
+        }}
+        onOpenQuotation={isLoggedIn ? handleOpenQuotation : undefined}
+      />
+
+      {/* Client Contact & Quotation Request Details Form Modal */}
+      <ClientDetailsModal
+        isOpen={isClientDetailsOpen}
+        onClose={() => setIsClientDetailsOpen(false)}
+        initialProjectSpecs={clientDetailsSpecs}
+      />
+
+      {/* Official Industry Quotation PDF Studio Modal (Admin) */}
+      <QuotationModal
+        isOpen={isQuotationOpen}
+        onClose={() => setIsQuotationOpen(false)}
+        initialData={quotationInitialData}
+        onSaveQuotation={(savedData) => {
+          setQuotationInitialData(savedData);
+          localStorage.setItem('ngd_saved_quotation', JSON.stringify(savedData));
+        }}
       />
 
     </div>

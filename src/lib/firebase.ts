@@ -6,9 +6,10 @@ import {
   getDocFromServer,
   onSnapshot,
   collection,
-  writeBatch
+  writeBatch,
+  deleteDoc
 } from 'firebase/firestore';
-import { SiteConfig, Project, Client, Service } from '../types';
+import { SiteConfig, Project, Client, Service, QuotationRequest } from '../types';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -74,12 +75,8 @@ export function subscribeToProjects(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      if (!snapshot.empty) {
-        const projects = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Project));
-        onData(projects);
-      } else {
-        onData(null);
-      }
+      const projects = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Project));
+      onData(projects);
     },
     (err) => {
       console.warn('Firestore projects subscription error:', err);
@@ -101,6 +98,14 @@ export async function saveProjectsToCloud(projects: Project[]): Promise<void> {
 }
 
 /**
+ * Delete Project from Cloud Firestore
+ */
+export async function deleteProjectFromCloud(id: string): Promise<void> {
+  const docRef = doc(db, 'projects', id);
+  await deleteDoc(docRef);
+}
+
+/**
  * Realtime Subscription for Clients
  */
 export function subscribeToClients(
@@ -111,12 +116,8 @@ export function subscribeToClients(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      if (!snapshot.empty) {
-        const clients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Client));
-        onData(clients);
-      } else {
-        onData(null);
-      }
+      const clients = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Client));
+      onData(clients);
     },
     (err) => {
       console.warn('Firestore clients subscription error:', err);
@@ -138,6 +139,14 @@ export async function saveClientsToCloud(clients: Client[]): Promise<void> {
 }
 
 /**
+ * Delete Client from Cloud Firestore
+ */
+export async function deleteClientFromCloud(id: string): Promise<void> {
+  const docRef = doc(db, 'clients', id);
+  await deleteDoc(docRef);
+}
+
+/**
  * Realtime Subscription for Services
  */
 export function subscribeToServices(
@@ -148,12 +157,8 @@ export function subscribeToServices(
   return onSnapshot(
     colRef,
     (snapshot) => {
-      if (!snapshot.empty) {
-        const services = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Service));
-        onData(services);
-      } else {
-        onData(null);
-      }
+      const services = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Service));
+      onData(services);
     },
     (err) => {
       console.warn('Firestore services subscription error:', err);
@@ -173,3 +178,53 @@ export async function saveServicesToCloud(services: Service[]): Promise<void> {
   });
   await batch.commit();
 }
+
+/**
+ * Realtime Subscription for Quotation Requests
+ */
+export function subscribeToQuotationRequests(
+  onData: (data: QuotationRequest[] | null) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, 'quotation_requests');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const requests = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as QuotationRequest));
+      onData(requests);
+    },
+    (err) => {
+      console.warn('Firestore quotation_requests subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Save Quotation Requests to Cloud Firestore
+ */
+export async function saveQuotationRequestsToCloud(requests: QuotationRequest[]): Promise<void> {
+  const batch = writeBatch(db);
+  requests.forEach((req) => {
+    const docRef = doc(db, 'quotation_requests', req.id);
+    batch.set(docRef, req, { merge: true });
+  });
+  await batch.commit();
+}
+
+/**
+ * Delete Quotation Request from Cloud Firestore
+ */
+export async function deleteQuotationRequestFromCloud(id: string): Promise<void> {
+  const docRef = doc(db, 'quotation_requests', id);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Delete Inquiry from Cloud Firestore
+ */
+export async function deleteInquiryFromCloud(id: string): Promise<void> {
+  const docRef = doc(db, 'inquiries', id);
+  await deleteDoc(docRef);
+}
+

@@ -1,31 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { SiteConfig, Project, Client, Service, Inquiry, SecurityLog } from '../../types';
+import { SiteConfig, Project, Client, Service, Inquiry, SecurityLog, QuotationRequest, QuotationData } from '../../types';
 import { defaultSiteConfig, defaultProjects, defaultClients } from '../../data/initialData';
 import { ImageUploader } from './ImageUploader';
 import {
   saveSiteConfigToCloud,
   saveProjectsToCloud,
   saveClientsToCloud,
-  saveServicesToCloud
+  saveServicesToCloud,
+  subscribeToQuotationRequests,
+  saveQuotationRequestsToCloud,
+  deleteClientFromCloud,
+  deleteProjectFromCloud,
+  deleteQuotationRequestFromCloud,
+  deleteInquiryFromCloud
 } from '../../lib/firebase';
 import {
-  Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock, Sliders, MoveLeft, MoveRight, Layout
+  Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock, Sliders, MoveLeft, MoveRight, Layout, Mail, Send, Palette, Sun, Moon, Sparkles
 } from 'lucide-react';
 
 interface AdminDashboardProps {
   token: string;
   onLogout: () => void;
   onRefreshPublicData: () => void;
+  onOpenQuotation?: (initialData?: Partial<QuotationData>) => void;
 }
 
-export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout, onRefreshPublicData }) => {
-  const [activeTab, setActiveTab] = useState<'settings' | 'projects' | 'clients' | 'inquiries' | 'security' | 'export'>('settings');
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout, onRefreshPublicData, onOpenQuotation }) => {
+  const [activeTab, setActiveTab] = useState<'settings' | 'projects' | 'clients' | 'inquiries' | 'quotations' | 'security' | 'export'>('settings');
 
   // Admin Data State
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [quotationRequests, setQuotationRequests] = useState<QuotationRequest[]>([]);
   const [securityLogs, setSecurityLogs] = useState<SecurityLog[]>([]);
 
   const [statusMsg, setStatusMsg] = useState('');
@@ -111,6 +119,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
         const saved = localStorage.getItem('ngd_inquiries');
         loadedInquiries = saved ? JSON.parse(saved) : [];
       }
+
+      const savedReqs = localStorage.getItem('ngd_quotation_requests');
+      const loadedReqs = savedReqs ? JSON.parse(savedReqs) : [];
+
       if (!loadedLogs) {
         const saved = localStorage.getItem('ngd_security_logs');
         loadedLogs = saved ? JSON.parse(saved) : [
@@ -122,6 +134,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       setProjects(loadedProj);
       setClients(loadedClients);
       setInquiries(loadedInquiries);
+      setQuotationRequests(loadedReqs);
       setSecurityLogs(loadedLogs);
     } catch (err) {
       console.warn('Failed to fetch admin data, using local fallback', err);
@@ -136,7 +149,107 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
 
   useEffect(() => {
     loadAdminData();
+
+    const unsub = subscribeToQuotationRequests((data) => {
+      if (data) {
+        setQuotationRequests(data);
+      }
+    });
+    return () => unsub();
   }, [token]);
+
+  // Handle preparing/editing PDF quotation for a client
+  const handlePrepareQuotation = (req: QuotationRequest) => {
+    if (onOpenQuotation) {
+      const items = (req.deliverables || []).map((deliv, idx) => ({
+        id: `item-${idx + 1}`,
+        description: `Deliverable ${idx + 1}: ${deliv}`,
+        hoursOrQty: [60, 80, 50, 40][idx % 4],
+        rate: 150,
+        amount: [9000, 12000, 7500, 6000][idx % 4]
+      }));
+
+      onOpenQuotation({
+        quotationNumber: `NGD-${Date.now().toString().slice(-6)}`,
+        clientName: req.clientName,
+        clientCompany: req.clientCompany,
+        clientEmail: req.clientEmail,
+        clientAddress: req.clientAddress,
+        projectTitle: req.projectTitle,
+        systemPurpose: req.systemPurpose,
+        industrySector: req.industrySector,
+        systemCategory: req.systemCategory,
+        estimatedTimeline: req.estimatedTimeline,
+        techStack: req.techStack,
+        deliverables: req.deliverables,
+        mainFeatures: req.mainFeatures,
+        items: items.length > 0 ? items : [
+          { id: '1', description: 'Enterprise AI Architecture Design & Feasibility', hoursOrQty: 40, rate: 150, amount: 6000 },
+          { id: '2', description: 'Model Fine-Tuning & Vector Pipeline Engine', hoursOrQty: 80, rate: 150, amount: 12000 },
+          { id: '3', description: 'Security Hardening, RBAC & SOC-2 Compliance Audit', hoursOrQty: 40, rate: 150, amount: 6000 }
+        ]
+      });
+
+      // Update request status to 'Quotation Prepared'
+      const updated = quotationRequests.map(r => r.id === req.id ? { ...r, status: 'Quotation Prepared' as const } : r);
+      setQuotationRequests(updated);
+      localStorage.setItem('ngd_quotation_requests', JSON.stringify(updated));
+      saveQuotationRequestsToCloud(updated).catch(err => console.warn(err));
+    }
+  };
+
+  // Handle Approve and Email Quotation to Client
+  const handleApproveAndSendEmail = async (req: QuotationRequest) => {
+    const updated = quotationRequests.map(r => r.id === req.id ? { ...r, status: 'Approved & Emailed' as const } : r);
+    setQuotationRequests(updated);
+    localStorage.setItem('ngd_quotation_requests', JSON.stringify(updated));
+    try {
+      await saveQuotationRequestsToCloud(updated);
+    } catch (err) {
+      console.warn('Cloud sync error:', err);
+    }
+
+    const subject = encodeURIComponent(`APPROVED: Official Enterprise Quotation for ${req.projectTitle} - Neural Grid Dynamics`);
+    const body = encodeURIComponent(
+      `Dear ${req.clientName} (${req.clientCompany}),\n\n` +
+      `We are pleased to inform you that your quotation request for "${req.projectTitle}" has been officially APPROVED by Neural Grid Dynamics Engineering Management.\n\n` +
+      `QUOTATION OVERVIEW:\n` +
+      `--------------------------------------------------\n` +
+      `Project Scope: ${req.projectTitle}\n` +
+      `Industry Sector: ${req.industrySector}\n` +
+      `System Category: ${req.systemCategory}\n` +
+      `Estimated Timeline: ${req.estimatedTimeline}\n` +
+      `Estimated Investment Subtotal: $${(req.estimatedSubtotal || 45000).toLocaleString()}\n\n` +
+      `SYSTEM PURPOSE & REQUIREMENTS:\n` +
+      `${req.systemPurpose}\n\n` +
+      `DELIVERABLES:\n` +
+      `${(req.deliverables || []).map(d => '• ' + d).join('\n')}\n\n` +
+      `Please find attached our official digital quotation PDF with seal & eSignature. Reply directly to this email to sign and schedule our kick-off engineering session.\n\n` +
+      `Best regards,\n` +
+      `Chief Systems Architect\n` +
+      `Neural Grid Dynamics AI Studio\n` +
+      `https://neuralgriddynamics.com`
+    );
+
+    window.open(`mailto:${req.clientEmail}?subject=${subject}&body=${body}`, '_blank');
+    setStatusMsg(`Approved & opened email dispatch for ${req.clientName} <${req.clientEmail}>!`);
+    setTimeout(() => setStatusMsg(''), 4000);
+  };
+
+  // Delete Quotation Request
+  const handleDeleteQuotationRequest = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this quotation request?')) return;
+    const updated = quotationRequests.filter(r => r.id !== id);
+    setQuotationRequests(updated);
+    localStorage.setItem('ngd_quotation_requests', JSON.stringify(updated));
+    try {
+      await deleteQuotationRequestFromCloud(id);
+    } catch (err) {
+      console.warn('Cloud delete error:', err);
+    }
+    setStatusMsg('Quotation request deleted.');
+    setTimeout(() => setStatusMsg(''), 3000);
+  };
 
   // Save Site Settings
   const handleSaveSiteConfig = async (e: React.FormEvent) => {
@@ -254,9 +367,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     localStorage.setItem('ngd_projects', JSON.stringify(updated));
 
     try {
-      await saveProjectsToCloud(updated);
+      await deleteProjectFromCloud(id);
     } catch (err) {
-      console.warn('Firestore cloud sync warning:', err);
+      console.warn('Firestore cloud delete warning:', err);
     }
 
     try {
@@ -323,9 +436,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     localStorage.setItem('ngd_clients', JSON.stringify(updated));
 
     try {
-      await saveClientsToCloud(updated);
+      await deleteClientFromCloud(id);
     } catch (err) {
-      console.warn('Firestore cloud sync warning:', err);
+      console.warn('Firestore cloud delete warning:', err);
     }
 
     try {
@@ -356,11 +469,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   const handleDeleteInquiry = async (id: string) => {
     if (!confirm('Delete this inquiry?')) return;
     try {
+      await deleteInquiryFromCloud(id);
+    } catch (err) {
+      console.warn('Cloud delete inquiry error:', err);
+    }
+    try {
       await authFetch(`/api/admin/inquiries/${id}`, { method: 'DELETE' });
-      loadAdminData();
     } catch (err) {
       console.error(err);
     }
+    loadAdminData();
   };
 
   // Change Password
@@ -557,6 +675,18 @@ export const defaultServices: Service[] = [
           </button>
 
           <button
+            onClick={() => setActiveTab('quotations')}
+            className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold rounded-xl transition ${
+              activeTab === 'quotations'
+                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'
+                : 'bg-gray-900 text-emerald-400 hover:text-white border border-emerald-500/30'
+            }`}
+          >
+            <FileText className="w-4 h-4 text-emerald-400" />
+            <span>Quotations & PDF Studio ({quotationRequests.length})</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('security')}
             className={`flex items-center space-x-2 px-4 py-2.5 text-xs font-bold rounded-xl transition ${
               activeTab === 'security'
@@ -636,24 +766,24 @@ export const defaultServices: Service[] = [
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-semibold text-gray-300">Logo Width (px)</label>
                     <span className="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/40">
-                      {siteConfig.logoWidth || 30}px
+                      {siteConfig.logoWidth || 120}px
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
                       type="range"
-                      min="15"
-                      max="120"
-                      value={siteConfig.logoWidth || 30}
-                      onChange={(e) => setSiteConfig({ ...siteConfig, logoWidth: parseInt(e.target.value) || 30 })}
+                      min="20"
+                      max="250"
+                      value={siteConfig.logoWidth || 120}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoWidth: parseInt(e.target.value) || 120 })}
                       className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <input
                       type="number"
-                      min="15"
-                      max="150"
-                      value={siteConfig.logoWidth || 30}
-                      onChange={(e) => setSiteConfig({ ...siteConfig, logoWidth: parseInt(e.target.value) || 30 })}
+                      min="20"
+                      max="300"
+                      value={siteConfig.logoWidth || 120}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoWidth: parseInt(e.target.value) || 120 })}
                       className="w-16 bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-white text-center focus:border-blue-500 focus:outline-none font-mono"
                     />
                   </div>
@@ -664,24 +794,24 @@ export const defaultServices: Service[] = [
                   <div className="flex justify-between items-center">
                     <label className="text-xs font-semibold text-gray-300">Logo Height (px)</label>
                     <span className="text-xs font-mono font-bold text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/40">
-                      {siteConfig.logoHeight || 35}px
+                      {siteConfig.logoHeight || 80}px
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <input
                       type="range"
-                      min="15"
-                      max="120"
-                      value={siteConfig.logoHeight || 35}
-                      onChange={(e) => setSiteConfig({ ...siteConfig, logoHeight: parseInt(e.target.value) || 35 })}
+                      min="20"
+                      max="180"
+                      value={siteConfig.logoHeight || 80}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoHeight: parseInt(e.target.value) || 80 })}
                       className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                     <input
                       type="number"
-                      min="15"
-                      max="150"
-                      value={siteConfig.logoHeight || 35}
-                      onChange={(e) => setSiteConfig({ ...siteConfig, logoHeight: parseInt(e.target.value) || 35 })}
+                      min="20"
+                      max="200"
+                      value={siteConfig.logoHeight || 80}
+                      onChange={(e) => setSiteConfig({ ...siteConfig, logoHeight: parseInt(e.target.value) || 80 })}
                       className="w-16 bg-gray-900 border border-gray-800 rounded-lg px-2 py-1 text-xs text-white text-center focus:border-blue-500 focus:outline-none font-mono"
                     />
                   </div>
@@ -799,6 +929,347 @@ export const defaultServices: Service[] = [
                         {siteConfig.tagline || 'Enterprise AI Engineering & Autonomous Grid Intelligence'}
                       </p>
                     </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* WEBSITE THEME & COLOR SCHEME CUSTOMIZATION PANEL */}
+            <div className="bg-gray-950/80 border border-blue-500/30 rounded-2xl p-5 space-y-5 shadow-xl">
+              <div className="flex items-center justify-between border-b border-gray-800/80 pb-3">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-gradient-to-br from-blue-600 to-cyan-500 text-white rounded-xl shadow">
+                    <Palette className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-white uppercase tracking-wider">Website Theme & Color Scheme Customizer</h3>
+                    <p className="text-xs text-gray-400">
+                      Customize global theme mode, background color, text color, and primary brand accents across all public visitors.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-mono px-2.5 py-1 bg-emerald-950/80 border border-emerald-500/40 text-emerald-300 rounded-full flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span>Realtime Sync Ready</span>
+                </span>
+              </div>
+
+              {/* Theme Mode Selector */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-300">Theme Mode</label>
+                <div className="grid grid-cols-3 gap-2 bg-gray-900 p-1.5 rounded-xl border border-gray-800 text-xs font-semibold">
+                  <button
+                    type="button"
+                    onClick={() => setSiteConfig({
+                      ...siteConfig,
+                      themeMode: 'dark',
+                      backgroundColor: siteConfig.backgroundColor || '#030712',
+                      textColor: siteConfig.textColor || '#f9fafb',
+                      cardBgColor: siteConfig.cardBgColor || '#0b1329'
+                    })}
+                    className={`py-2 px-3 rounded-lg transition flex items-center justify-center space-x-2 ${
+                      siteConfig.themeMode === 'dark' || !siteConfig.themeMode
+                        ? 'bg-blue-600 text-white shadow-md font-bold'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Moon className="w-4 h-4 text-cyan-300" />
+                    <span>Dark Mode</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSiteConfig({
+                      ...siteConfig,
+                      themeMode: 'light',
+                      backgroundColor: '#f8fafc',
+                      textColor: '#0f172a',
+                      cardBgColor: '#ffffff',
+                      primaryColor: siteConfig.primaryColor || '#2563eb',
+                      accentColor: siteConfig.accentColor || '#0d9488'
+                    })}
+                    className={`py-2 px-3 rounded-lg transition flex items-center justify-center space-x-2 ${
+                      siteConfig.themeMode === 'light'
+                        ? 'bg-blue-600 text-white shadow-md font-bold'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Sun className="w-4 h-4 text-amber-300" />
+                    <span>Light Mode</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSiteConfig({
+                      ...siteConfig,
+                      themeMode: 'custom'
+                    })}
+                    className={`py-2 px-3 rounded-lg transition flex items-center justify-center space-x-2 ${
+                      siteConfig.themeMode === 'custom'
+                        ? 'bg-blue-600 text-white shadow-md font-bold'
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-purple-300" />
+                    <span>Custom Palette</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 1-Click Preset Schemes */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-gray-300">1-Click Color Scheme Presets</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    {
+                      name: 'Neural Cyberpunk',
+                      mode: 'dark',
+                      bg: '#030712',
+                      text: '#f9fafb',
+                      primary: '#3b82f6',
+                      accent: '#06b6d4',
+                      card: '#0b1329'
+                    },
+                    {
+                      name: 'Emerald Quantum',
+                      mode: 'dark',
+                      bg: '#022c22',
+                      text: '#f0fdf4',
+                      primary: '#10b981',
+                      accent: '#34d399',
+                      card: '#064e3b'
+                    },
+                    {
+                      name: 'Deep Purple AI',
+                      mode: 'dark',
+                      bg: '#0f0728',
+                      text: '#faf5ff',
+                      primary: '#8b5cf6',
+                      accent: '#ec4899',
+                      card: '#1e1035'
+                    },
+                    {
+                      name: 'Midnight Stealth',
+                      mode: 'dark',
+                      bg: '#000000',
+                      text: '#ffffff',
+                      primary: '#38bdf8',
+                      accent: '#a855f7',
+                      card: '#121212'
+                    },
+                    {
+                      name: 'Titanium Slate',
+                      mode: 'dark',
+                      bg: '#0f172a',
+                      text: '#f8fafc',
+                      primary: '#6366f1',
+                      accent: '#38bdf8',
+                      card: '#1e293b'
+                    },
+                    {
+                      name: 'Clean Corporate Light',
+                      mode: 'light',
+                      bg: '#f8fafc',
+                      text: '#0f172a',
+                      primary: '#2563eb',
+                      accent: '#0d9488',
+                      card: '#ffffff'
+                    },
+                    {
+                      name: 'Soft Warm Light',
+                      mode: 'light',
+                      bg: '#fafaf9',
+                      text: '#1c1917',
+                      primary: '#1e3a8a',
+                      accent: '#f97316',
+                      card: '#ffffff'
+                    },
+                    {
+                      name: 'Gold & Obsidian',
+                      mode: 'dark',
+                      bg: '#0c0a09',
+                      text: '#fef08a',
+                      primary: '#eab308',
+                      accent: '#f97316',
+                      card: '#1c1917'
+                    },
+                  ].map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => setSiteConfig({
+                        ...siteConfig,
+                        themeMode: preset.mode as any,
+                        backgroundColor: preset.bg,
+                        textColor: preset.text,
+                        primaryColor: preset.primary,
+                        accentColor: preset.accent,
+                        cardBgColor: preset.card
+                      })}
+                      className="p-2.5 bg-gray-900 hover:bg-gray-850 rounded-xl border border-gray-800 text-left transition hover:border-blue-500/50 group"
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[11px] font-bold text-white group-hover:text-blue-400 transition">{preset.name}</span>
+                        <div className="flex space-x-1">
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: preset.primary }}></span>
+                          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: preset.accent }}></span>
+                        </div>
+                      </div>
+                      <div className="h-2 w-full rounded flex overflow-hidden border border-gray-800">
+                        <div className="w-1/2 h-full" style={{ backgroundColor: preset.bg }}></div>
+                        <div className="w-1/2 h-full" style={{ backgroundColor: preset.card }}></div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Detailed Color Pickers & Hex Modifiers */}
+              <div className="space-y-3 pt-2 border-t border-gray-900">
+                <h4 className="text-xs font-bold text-gray-300 uppercase tracking-wider">Custom Color Palette Modifiers</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  
+                  {/* Background Color */}
+                  <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-gray-300">Canvas Background</label>
+                      <span className="text-[10px] font-mono text-gray-400 uppercase">{siteConfig.backgroundColor || '#030712'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={siteConfig.backgroundColor || '#030712'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, backgroundColor: e.target.value })}
+                        className="w-9 h-9 rounded-lg bg-transparent cursor-pointer border border-gray-700"
+                      />
+                      <input
+                        type="text"
+                        value={siteConfig.backgroundColor || '#030712'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, backgroundColor: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Main Text Color */}
+                  <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-gray-300">Primary Text</label>
+                      <span className="text-[10px] font-mono text-gray-400 uppercase">{siteConfig.textColor || '#f9fafb'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={siteConfig.textColor || '#f9fafb'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, textColor: e.target.value })}
+                        className="w-9 h-9 rounded-lg bg-transparent cursor-pointer border border-gray-700"
+                      />
+                      <input
+                        type="text"
+                        value={siteConfig.textColor || '#f9fafb'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, textColor: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Primary Brand Color */}
+                  <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-gray-300">Primary Brand Highlight</label>
+                      <span className="text-[10px] font-mono text-gray-400 uppercase">{siteConfig.primaryColor || '#3b82f6'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={siteConfig.primaryColor || '#3b82f6'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, primaryColor: e.target.value })}
+                        className="w-9 h-9 rounded-lg bg-transparent cursor-pointer border border-gray-700"
+                      />
+                      <input
+                        type="text"
+                        value={siteConfig.primaryColor || '#3b82f6'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, primaryColor: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Secondary Accent Color */}
+                  <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-gray-300">Secondary Accent</label>
+                      <span className="text-[10px] font-mono text-gray-400 uppercase">{siteConfig.accentColor || '#06b6d4'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={siteConfig.accentColor || '#06b6d4'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, accentColor: e.target.value })}
+                        className="w-9 h-9 rounded-lg bg-transparent cursor-pointer border border-gray-700"
+                      />
+                      <input
+                        type="text"
+                        value={siteConfig.accentColor || '#06b6d4'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, accentColor: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Card Background Color */}
+                  <div className="bg-gray-900 p-3 rounded-xl border border-gray-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-xs font-semibold text-gray-300">Module / Card Background</label>
+                      <span className="text-[10px] font-mono text-gray-400 uppercase">{siteConfig.cardBgColor || '#0b1329'}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="color"
+                        value={siteConfig.cardBgColor || '#0b1329'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, cardBgColor: e.target.value })}
+                        className="w-9 h-9 rounded-lg bg-transparent cursor-pointer border border-gray-700"
+                      />
+                      <input
+                        type="text"
+                        value={siteConfig.cardBgColor || '#0b1329'}
+                        onChange={(e) => setSiteConfig({ ...siteConfig, cardBgColor: e.target.value })}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Live Theme Preview Box */}
+              <div className="rounded-xl p-4 border border-gray-800 transition shadow-inner" style={{ backgroundColor: siteConfig.backgroundColor || '#030712' }}>
+                <div className="flex items-center justify-between text-[10px] font-mono uppercase mb-2" style={{ color: siteConfig.textColor || '#f9fafb' }}>
+                  <span>Live Public View Theme Preview</span>
+                  <span className="px-2 py-0.5 rounded font-bold text-white" style={{ backgroundColor: siteConfig.primaryColor || '#3b82f6' }}>
+                    Active Palette
+                  </span>
+                </div>
+                
+                <div className="p-4 rounded-xl border border-gray-800/80 space-y-3" style={{ backgroundColor: siteConfig.cardBgColor || '#0b1329' }}>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold" style={{ color: siteConfig.textColor || '#f9fafb' }}>
+                      {siteConfig.companyName || 'Neural Grid Dynamics'}
+                    </h4>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ backgroundColor: `${siteConfig.accentColor || '#06b6d4'}25`, color: siteConfig.accentColor || '#06b6d4' }}>
+                      {siteConfig.themeMode === 'light' ? 'Light Theme' : 'Dark Theme'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] opacity-80" style={{ color: siteConfig.textColor || '#f9fafb' }}>
+                    {siteConfig.heroHeadline || 'Architecting Enterprise AI Systems & Autonomous Neural Networks'}
+                  </p>
+                  <div className="flex space-x-2 pt-1">
+                    <button type="button" className="px-3 py-1 text-[11px] font-bold rounded-lg text-white shadow" style={{ backgroundColor: siteConfig.primaryColor || '#3b82f6' }}>
+                      Primary Button
+                    </button>
+                    <button type="button" className="px-3 py-1 text-[11px] font-bold rounded-lg border" style={{ borderColor: siteConfig.accentColor || '#06b6d4', color: siteConfig.accentColor || '#06b6d4' }}>
+                      Secondary Outline
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1411,7 +1882,144 @@ export const defaultServices: Service[] = [
           </div>
         )}
 
-        {/* TAB 5: SECURITY LOGS & AUTH */}
+        {/* TAB 5: QUOTATION REQUESTS & PDF STUDIO */}
+        {activeTab === 'quotations' && (
+          <div className="space-y-6">
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <div className="p-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-lg font-extrabold text-white">Client Quotation Requests & PDF Studio</h2>
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Manage incoming client quotation submissions. Edit line items, add eSignatures, export official A4 PDFs, and approve & email directly to clients.
+                </p>
+              </div>
+
+              {onOpenQuotation && (
+                <button
+                  onClick={() => onOpenQuotation()}
+                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs rounded-xl shadow-lg transition flex items-center space-x-2 border border-emerald-400/30 shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Custom Quotation PDF</span>
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {quotationRequests.length === 0 ? (
+                <div className="p-12 text-center text-gray-500 bg-gray-900 border border-gray-800 rounded-2xl text-xs space-y-3">
+                  <FileText className="w-10 h-10 mx-auto text-gray-600" />
+                  <p className="font-bold text-gray-400">No quotation requests submitted yet.</p>
+                  <p className="text-gray-500 max-w-sm mx-auto">
+                    When public clients click "Get Official Quotation" in the AI Estimator or website, their details and project scope will appear here for admin review.
+                  </p>
+                </div>
+              ) : (
+                quotationRequests.map((req) => (
+                  <div key={req.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-6 space-y-4 hover:border-gray-700 transition">
+                    
+                    {/* Header Row */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 pb-3">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-extrabold text-white text-base">{req.clientCompany}</span>
+                          <span className="text-xs text-gray-400">({req.clientName})</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-1">
+                          <span className="flex items-center space-x-1 text-emerald-400 font-mono">
+                            <Mail className="w-3.5 h-3.5" />
+                            <span>{req.clientEmail}</span>
+                          </span>
+                          <span>•</span>
+                          <span className="font-mono text-amber-300">{req.clientPhone}</span>
+                          <span>•</span>
+                          <span className="text-gray-400">{req.clientAddress}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <span className={`px-3 py-1 rounded-full text-[11px] font-extrabold border ${
+                          req.status === 'Approved & Emailed'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            : req.status === 'Quotation Prepared'
+                            ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                        }`}>
+                          {req.status}
+                        </span>
+
+                        <button
+                          onClick={() => handleDeleteQuotationRequest(req.id)}
+                          className="p-2 bg-red-950/60 text-red-400 rounded-xl hover:bg-red-600 hover:text-white transition"
+                          title="Delete Request"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Request Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
+                        <div className="font-bold text-blue-400">Project Scope & System Category</div>
+                        <p className="text-white font-extrabold text-sm">{req.projectTitle}</p>
+                        <p className="text-gray-300 leading-relaxed">{req.systemPurpose}</p>
+                      </div>
+
+                      <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 space-y-2">
+                        <div className="flex justify-between items-center text-gray-400">
+                          <span>Industry Sector: <strong className="text-gray-200">{req.industrySector}</strong></span>
+                          <span>Timeline: <strong className="text-purple-300">{req.estimatedTimeline}</strong></span>
+                        </div>
+                        <div className="text-gray-400 pt-1">Recommended Tech Stack:</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(req.techStack || []).map((tech, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-gray-900 border border-gray-800 text-gray-300 text-[10px] rounded-md font-mono">
+                              {tech}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Bar for Admin */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-800">
+                      <div className="text-[11px] text-gray-500">
+                        Submitted Date: {new Date(req.createdAt).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+
+                      <div className="flex items-center space-x-3">
+                        <button
+                          onClick={() => handlePrepareQuotation(req)}
+                          className="px-4 py-2 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/40 text-blue-200 hover:text-white font-bold text-xs rounded-xl transition flex items-center space-x-1.5"
+                        >
+                          <FileText className="w-4 h-4 text-blue-400" />
+                          <span>Prepare / Edit PDF Quotation</span>
+                        </button>
+
+                        <button
+                          onClick={() => handleApproveAndSendEmail(req)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl transition shadow flex items-center space-x-1.5 border border-emerald-400/30"
+                        >
+                          <Send className="w-4 h-4" />
+                          <span>Approve & Send to Client Email</span>
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                ))
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 6: SECURITY LOGS & AUTH */}
         {activeTab === 'security' && (
           <div className="space-y-8">
             

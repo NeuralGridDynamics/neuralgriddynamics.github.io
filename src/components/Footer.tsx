@@ -16,8 +16,8 @@ export const Footer: React.FC<FooterProps> = ({ siteConfig, onOpenAdminLogin }) 
           {/* Brand Info */}
           <div className="md:col-span-1 space-y-3">
             {(() => {
-              const w = siteConfig.logoWidth || 30;
-              const h = siteConfig.logoHeight || 35;
+              const w = siteConfig.logoWidth || 120;
+              const h = siteConfig.logoHeight || 80;
               const pos = siteConfig.logoPosition || 'left';
 
               let footerContainerClass = "flex items-center space-x-2.5";
@@ -33,6 +33,7 @@ export const Footer: React.FC<FooterProps> = ({ siteConfig, onOpenAdminLogin }) 
                     <img 
                       src={siteConfig.logoUrl} 
                       alt={siteConfig.companyName} 
+                      loading="eager"
                       style={{ width: `${w}px`, height: `${h}px` }}
                       className="rounded-lg object-contain bg-gray-900 border border-blue-500/30 flex-shrink-0" 
                     />
