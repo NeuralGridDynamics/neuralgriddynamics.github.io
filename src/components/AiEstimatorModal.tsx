@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Loader2, CheckCircle, Cpu, ShieldCheck, Clock, Layers, Send, Key, Bot, User, RefreshCw, Target, Zap, CheckCircle2, Mail, FileText, ExternalLink } from 'lucide-react';
+import { Sparkles, X, Loader2, CheckCircle, Cpu, ShieldCheck, Clock, Layers, Send, Key, Bot, User, RefreshCw, Target, Zap, CheckCircle2, Mail, FileText, ExternalLink, MessageSquare } from 'lucide-react';
 import { QuotationData } from '../types';
 
 interface AiEstimatorModalProps {
@@ -198,7 +198,6 @@ export const AiEstimatorModal: React.FC<AiEstimatorModalProps> = ({
 
     window.open(`mailto:arfanumail@gmail.com?subject=${subject}&body=${body}`, '_blank');
   };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
       <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-4xl w-full h-[92vh] flex flex-col shadow-2xl relative overflow-hidden">
@@ -414,7 +413,6 @@ export const AiEstimatorModal: React.FC<AiEstimatorModalProps> = ({
                           </p>
                         </div>
                       )}
-
                       <p className="text-xs sm:text-sm text-gray-200 leading-relaxed font-medium">
                         {msg.estimation.recommendedArchitecture}
                       </p>
@@ -436,7 +434,6 @@ export const AiEstimatorModal: React.FC<AiEstimatorModalProps> = ({
                           </div>
                         </div>
                       )}
-
                       <div>
                         <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
                           <Cpu className="w-3.5 h-3.5 text-blue-400" />
