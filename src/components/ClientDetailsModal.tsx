@@ -99,24 +99,8 @@ export const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
       localStorage.setItem('ngd_quotation_requests', JSON.stringify(updatedRequests));
       saveQuotationRequestsToCloud(updatedRequests).catch(err => console.warn('Cloud quotation request save warning:', err));
 
-      // 3. Trigger mailto notification for user's email app if desired
-      const subject = encodeURIComponent(`Quotation Request Received: ${formData.clientCompany} (${formData.clientName})`);
-      const mailBody = encodeURIComponent(
-        `Dear Neural Grid Dynamics Team,\n\n` +
-        `A new enterprise quotation request has been logged by a client:\n\n` +
-        `CLIENT DETAILS:\n` +
-        `Name: ${formData.clientName}\n` +
-        `Company: ${formData.clientCompany}\n` +
-        `Email: ${formData.clientEmail}\n` +
-        `Phone: ${formData.clientPhone}\n` +
-        `Address: ${formData.clientAddress}\n\n` +
-        `PROJECT PURPOSE / REQUIREMENTS:\n` +
-        `${formData.projectNotes}\n\n` +
-        `Please log in to the Admin Dashboard to edit and approve the official PDF quotation.`
-      );
-
-      // Open email client in background
-      window.open(`mailto:arfanumail@gmail.com?subject=${subject}&body=${mailBody}`, '_blank');
+      // Dispatch custom window event to refresh admin dashboard data in real-time
+      window.dispatchEvent(new Event('ngd_quotation_updated'));
 
       setIsSaving(false);
       setIsSubmitted(true);
@@ -283,22 +267,22 @@ export const ClientDetailsModal: React.FC<ClientDetailsModalProps> = ({
               </div>
 
               <div className="space-y-2">
-                <h4 className="text-lg font-extrabold text-emerald-400">Your request has been forwarded through email.</h4>
+                <h4 className="text-lg font-extrabold text-emerald-400">Request Received in Admin Quotations & PDF Studio</h4>
                 <p className="text-xs text-gray-300 leading-relaxed max-w-md mx-auto">
-                  Thank you, <strong className="text-white">{formData.clientName}</strong> (<span className="text-blue-300">{formData.clientCompany}</span>)! Your client profile and project details have been saved and your request has been forwarded through email to our administration team.
+                  Thank you, <strong className="text-white">{formData.clientName}</strong> (<span className="text-blue-300">{formData.clientCompany}</span>)! Your client profile and technical project request have been directly logged into our <strong>Admin Module &rarr; Quotations & PDF Studio</strong>.
                 </p>
               </div>
 
               <div className="p-4 bg-gray-900 border border-gray-800 rounded-2xl text-left text-xs space-y-2 max-w-md mx-auto">
                 <div className="flex items-center space-x-2 text-emerald-400 font-bold">
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Official Software House Process</span>
+                  <span>Admin Module Processing Workflow</span>
                 </div>
                 <p className="text-gray-300 leading-relaxed">
-                  Our Chief Systems Architect will review your specifications, customize the formal line items, and email your official PDF quotation directly to:
+                  Our Chief Systems Architect and Admin team will inspect your requirements in the Admin Quotation Studio, customize line item breakdowns, and prepare your official PDF quotation.
                 </p>
                 <div className="p-2.5 bg-gray-950 rounded-xl border border-gray-800 font-mono text-center text-blue-300 font-extrabold">
-                  {formData.clientEmail}
+                  Client Email: {formData.clientEmail}
                 </div>
               </div>
 

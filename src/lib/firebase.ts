@@ -9,7 +9,7 @@ import {
   writeBatch,
   deleteDoc
 } from 'firebase/firestore';
-import { SiteConfig, Project, Client, Service, QuotationRequest } from '../types';
+import { SiteConfig, Project, Client, Service, QuotationRequest, TransactionRecord, AdminUserRights } from '../types';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -227,4 +227,87 @@ export async function deleteInquiryFromCloud(id: string): Promise<void> {
   const docRef = doc(db, 'inquiries', id);
   await deleteDoc(docRef);
 }
+
+/**
+ * Realtime Subscription for Transactions
+ */
+export function subscribeToTransactions(
+  onData: (data: TransactionRecord[] | null) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, 'transactions');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const transactions = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as TransactionRecord));
+      onData(transactions);
+    },
+    (err) => {
+      console.warn('Firestore transactions subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Save Transactions to Cloud Firestore
+ */
+export async function saveTransactionsToCloud(transactions: TransactionRecord[]): Promise<void> {
+  const batch = writeBatch(db);
+  transactions.forEach((tx) => {
+    const docRef = doc(db, 'transactions', tx.id);
+    batch.set(docRef, tx, { merge: true });
+  });
+  await batch.commit();
+}
+
+/**
+ * Delete Transaction from Cloud Firestore
+ */
+export async function deleteTransactionFromCloud(id: string): Promise<void> {
+  const docRef = doc(db, 'transactions', id);
+  await deleteDoc(docRef);
+}
+
+/**
+ * Realtime Subscription for Admin Users & Database Rights
+ */
+export function subscribeToAdmins(
+  onData: (data: AdminUserRights[] | null) => void,
+  onError?: (err: Error) => void
+) {
+  const colRef = collection(db, 'admins');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const admins = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as AdminUserRights));
+      onData(admins);
+    },
+    (err) => {
+      console.warn('Firestore admins subscription error:', err);
+      if (onError) onError(err);
+    }
+  );
+}
+
+/**
+ * Save Admin Rights to Cloud Firestore
+ */
+export async function saveAdminsToCloud(admins: AdminUserRights[]): Promise<void> {
+  const batch = writeBatch(db);
+  admins.forEach((adm) => {
+    const docRef = doc(db, 'admins', adm.id);
+    batch.set(docRef, adm, { merge: true });
+  });
+  await batch.commit();
+}
+
+/**
+ * Delete Admin User from Cloud Firestore
+ */
+export async function deleteAdminFromCloud(id: string): Promise<void> {
+  const docRef = doc(db, 'admins', id);
+  await deleteDoc(docRef);
+}
+
 

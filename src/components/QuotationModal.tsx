@@ -4,16 +4,17 @@ import {
   FileText, Building2, User, Calendar, DollarSign, Sparkles, Key, Eraser,
   Printer, Check, ExternalLink, HelpCircle
 } from 'lucide-react';
-import { QuotationData, QuotationLineItem } from '../types';
+import { QuotationData, QuotationLineItem, SiteConfig } from '../types';
 
 interface QuotationModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialData?: Partial<QuotationData>;
   onSaveQuotation?: (updatedData: QuotationData) => void;
+  siteConfig?: SiteConfig;
 }
 
-export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose, initialData, onSaveQuotation }) => {
+export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose, initialData, onSaveQuotation, siteConfig }) => {
   const [activeTab, setActiveTab] = useState<'preview' | 'edit'>('preview');
   const [isExporting, setIsExporting] = useState(false);
   const [saveNotification, setSaveNotification] = useState<string | null>(null);
@@ -32,15 +33,16 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
       quotationNumber: initialData?.quotationNumber || refNum,
       issueDate: initialData?.issueDate || today,
       validUntil: initialData?.validUntil || expiry,
-      companyName: initialData?.companyName || 'Neural Grid Dynamics - Enterprise AI & Systems Ltd.',
-      companyLogoUrl: initialData?.companyLogoUrl || '/logo.png',
-      companyAddress: initialData?.companyAddress || 'Neural Grid Towers, Suite 1400, Tech Quarter, CA 94105',
-      companyEmail: initialData?.companyEmail || 'arfanumail@gmail.com',
-      companyPhone: initialData?.companyPhone || '+1 (800) 555-0199',
+      companyName: initialData?.companyName || siteConfig?.companyName || 'Neural Grid Dynamics - Enterprise AI & Systems Ltd.',
+      companyLogoUrl: initialData?.companyLogoUrl || siteConfig?.logoUrl || '/logo.png',
+      companyAddress: initialData?.companyAddress || siteConfig?.address || 'Neural Grid Towers, Suite 1400, Tech Quarter, CA 94105',
+      companyEmail: initialData?.companyEmail || siteConfig?.contactEmail || 'arfanumail@gmail.com',
+      companyPhone: initialData?.companyPhone || siteConfig?.contactPhone || '+1 (800) 555-0199',
       companyTaxId: initialData?.companyTaxId || 'US-987654321-AI',
       clientName: initialData?.clientName || 'Enterprise Partner / Executive Lead',
       clientCompany: initialData?.clientCompany || 'Client Organization',
       clientEmail: initialData?.clientEmail || 'client@enterprise.com',
+      clientPhone: initialData?.clientPhone || '+1 (555) 019-2834',
       clientAddress: initialData?.clientAddress || 'Corporate Headquarters, NY 10001',
       projectTitle: initialData?.projectTitle || 'Enterprise AI Solution Architecture & Development',
       systemPurpose: initialData?.systemPurpose || 'To deliver a scalable, fault-tolerant AI architecture with private vector indexing, high-throughput microservices, and air-gapped zero data retention.',
@@ -83,14 +85,17 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
 
   // Synchronize state when initialData or modal visibility changes
   useEffect(() => {
-    if (isOpen && initialData) {
+    if (isOpen) {
       setQuoteData(prev => ({
         ...prev,
-        ...initialData,
-        items: initialData.items && initialData.items.length > 0 ? initialData.items : prev.items,
+        companyLogoUrl: initialData?.companyLogoUrl || siteConfig?.logoUrl || prev.companyLogoUrl || '/logo.png',
+        ...(initialData || {}),
+        clientPhone: initialData?.clientPhone || prev.clientPhone || '+1 (555) 019-2834',
+        clientAddress: initialData?.clientAddress || prev.clientAddress || 'Corporate Headquarters, NY 10001',
+        items: initialData?.items && initialData.items.length > 0 ? initialData.items : prev.items,
       }));
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, siteConfig]);
 
   const handleSaveEditedQuotation = () => {
     if (onSaveQuotation) {
@@ -219,39 +224,372 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
     setQuoteData(prev => ({ ...prev, items: prev.items.filter(item => item.id !== id) }));
   };
 
-  // Download PDF via html2pdf.js
-  const handleDownloadPdf = async () => {
-    setIsExporting(true);
-    const element = document.getElementById('quotation-pdf-document');
-    if (!element) {
-      alert('Quotation document element not found.');
-      setIsExporting(false);
+  // Standalone Printable / PDF Export Window
+  const openStandalonePdfWindow = (data: QuotationData) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      // Fallback if popups blocked: print current view
+      window.print();
       return;
     }
 
-    try {
-      // Dynamic import html2pdf.js
-      const html2pdf = (await import('html2pdf.js')).default;
-      const opt = {
-        margin: 10,
-        filename: `Official_Quotation_${quoteData.quotationNumber}.pdf`,
-        image: { type: 'jpeg' as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
-      };
-
-      await html2pdf().set(opt).from(element).save();
-    } catch (err) {
-      console.warn('html2pdf download fallback triggered, opening print dialog:', err);
-      window.print();
-    } finally {
-      setIsExporting(false);
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Official Quotation - ${data.quotationNumber}</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      color: #0f172a;
+      background: #f8fafc;
+      font-size: 13px;
+      line-height: 1.5;
     }
+    .print-bar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 12px 24px;
+      margin: -24px -24px 24px -24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      border-bottom: 2px solid #2563eb;
+    }
+    .btn-action {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 2px 4px rgba(37,99,235,0.3);
+    }
+    .btn-action:hover { background: #1d4ed8; }
+    .btn-close { background: #334155; }
+    .btn-close:hover { background: #475569; }
+    @media print {
+      .print-bar { display: none !important; }
+      body { background: white !important; padding: 0 !important; margin: 0 !important; }
+      .doc-card { box-shadow: none !important; border: none !important; padding: 0 !important; }
+    }
+    .doc-card {
+      background: #ffffff;
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 36px;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #f1f5f9;
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+    }
+    .company-logo {
+      height: 60px;
+      max-width: 200px;
+      object-fit: contain;
+    }
+    .badge-quotation {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-weight: 900;
+      font-size: 18px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    .info-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .info-box-title {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .purpose-box {
+      background: #eff6ff;
+      border: 1px solid #dbeafe;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 24px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    th {
+      background: #0f172a;
+      color: white;
+      text-align: left;
+      padding: 10px 14px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 12px;
+    }
+    .text-right { text-align: right; }
+    .totals-area {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 30px;
+    }
+    .totals-table {
+      width: 320px;
+      border-collapse: collapse;
+    }
+    .totals-table td {
+      padding: 6px 10px;
+      border-bottom: none;
+    }
+    .total-row td {
+      border-top: 2px solid #2563eb;
+      font-size: 16px;
+      font-weight: 900;
+      color: #1e40af;
+      padding-top: 10px;
+    }
+    .signature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-top: 32px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 24px;
+    }
+    .sig-box {
+      border: 1px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 18px;
+      text-align: center;
+      background: #fafafa;
+    }
+    .seal-badge {
+      display: inline-block;
+      margin-top: 10px;
+      border: 2px double #2563eb;
+      color: #2563eb;
+      padding: 4px 10px;
+      font-weight: 800;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transform: rotate(-3deg);
+    }
+  </style>
+</head>
+<body>
+  <div class="print-bar">
+    <div>
+      <strong>📄 Official Enterprise Quotation Document</strong>
+      <span style="opacity: 0.8; margin-left: 10px; font-size: 11px;">Ref: ${data.quotationNumber}</span>
+    </div>
+    <div>
+      <button class="btn-action" onclick="window.print()">
+        <span>🖨️ Print / Save as PDF</span>
+      </button>
+      <button class="btn-action btn-close" onclick="window.close()">
+        <span>Close Window</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="doc-card">
+    <div class="header">
+      <div>
+        <img src="${data.companyLogoUrl || '/logo.png'}" alt="Company Logo" class="company-logo" onerror="this.src='/logo.png';" />
+        <h2 style="margin: 10px 0 2px 0; font-size: 16px; font-weight: 800; color: #0f172a;">${data.companyName}</h2>
+        <p style="margin: 0; color: #64748b; font-size: 11px;">${data.companyAddress}</p>
+        <p style="margin: 0; color: #64748b; font-size: 11px;">Email: ${data.companyEmail} • Tel: ${data.companyPhone}</p>
+        <p style="margin: 0; color: #64748b; font-size: 11px;">Tax ID / Registration: ${data.companyTaxId}</p>
+      </div>
+      <div style="text-align: right;">
+        <div class="badge-quotation">OFFICIAL QUOTATION</div>
+        <p style="margin: 8px 0 2px 0; font-family: monospace; font-weight: 800; color: #1e3a8a;">REF: ${data.quotationNumber}</p>
+        <p style="margin: 0; font-size: 11px; color: #475569;">Issue Date: <strong>${data.issueDate}</strong></p>
+        <p style="margin: 0; font-size: 11px; color: #b91c1c;">Valid Until: <strong>${data.validUntil}</strong></p>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <div class="info-box-title">Client / Enterprise Organization</div>
+        <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${data.clientName}</div>
+        <div style="font-weight: 700; color: #334155;">${data.clientCompany}</div>
+        <div style="color: #64748b;">${data.clientAddress}</div>
+        <div style="color: #2563eb; font-family: monospace; margin-top: 4px;">${data.clientEmail} ${data.clientPhone ? '• ' + data.clientPhone : ''}</div>
+      </div>
+      <div class="info-box">
+        <div class="info-box-title">Project Title & Reference</div>
+        <div style="font-size: 14px; font-weight: 800; color: #0f172a;">${data.projectTitle}</div>
+        <div style="margin-top: 6px; font-size: 11px; color: #64748b;">
+          Commercial Proposal & Technical Deliverables Schedule prepared by Neural Grid Dynamics Engineering Department.
+        </div>
+      </div>
+    </div>
+
+    ${data.systemPurpose ? `
+      <div class="purpose-box">
+        <div class="info-box-title" style="color: #1d4ed8;">System Architecture & Purpose Statement</div>
+        <div style="color: #1e3a8a; font-weight: 500;">${data.systemPurpose}</div>
+      </div>
+    ` : ''}
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 40px;">#</th>
+          <th>Milestone / Technical Module Description</th>
+          <th class="text-right" style="width: 90px;">Hours / Qty</th>
+          <th class="text-right" style="width: 100px;">Rate ($)</th>
+          <th class="text-right" style="width: 110px;">Amount ($)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.items.map((item, idx) => `
+          <tr>
+            <td style="font-weight: 700; color: #64748b;">${idx + 1}</td>
+            <td style="font-weight: 600; color: #1e293b;">${item.description}</td>
+            <td class="text-right" style="font-family: monospace;">${item.hoursOrQty}</td>
+            <td class="text-right" style="font-family: monospace;">$${item.rate.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            <td class="text-right" style="font-family: monospace; font-weight: 700; color: #0f172a;">$${item.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div class="totals-area">
+      <table class="totals-table">
+        <tbody>
+          <tr>
+            <td style="color: #64748b;">Subtotal:</td>
+            <td class="text-right" style="font-family: monospace; font-weight: 700;">$${data.subtotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+          ${data.taxAmount > 0 ? `
+            <tr>
+              <td style="color: #64748b;">Estimated Tax (${data.taxRatePercent}%):</td>
+              <td class="text-right" style="font-family: monospace;">$${data.taxAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          ` : ''}
+          <tr class="total-row">
+            <td>Total (${data.currency || 'USD'}):</td>
+            <td class="text-right" style="font-family: monospace;">$${data.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    ${data.paymentTerms ? `
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+        <div class="info-box-title">Commercial & Payment Terms</div>
+        <div style="color: #334155; font-size: 11px;">${data.paymentTerms}</div>
+      </div>
+    ` : ''}
+
+    <div class="signature-grid">
+      <div class="sig-box">
+        <div style="font-weight: 800; color: #0f172a;">${data.companyName}</div>
+        <div style="font-size: 11px; color: #64748b;">Authorized Executive Signatory</div>
+        <div class="seal-badge">VERIFIED & APPROVED</div>
+      </div>
+      <div class="sig-box">
+        <div style="font-weight: 800; color: #0f172a;">${data.clientCompany}</div>
+        <div style="font-size: 11px; color: #64748b;">Client Acceptance & Date</div>
+        <div style="margin-top: 15px; border-bottom: 1px dashed #94a3b8; width: 80%; margin-left: auto; margin-right: auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 350);
+    };
+  </script>
+</body>
+</html>`;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  // Download PDF via html2pdf.js + Standalone PDF Window Fallback
+  const handleDownloadPdf = async () => {
+    setIsExporting(true);
+
+    // Always open the clean standalone printable PDF document window for instant print & PDF save
+    openStandalonePdfWindow(quoteData);
+
+    // Also attempt html2pdf direct file download if browser allows
+    if (activeTab !== 'preview') {
+      setActiveTab('preview');
+      await new Promise(resolve => setTimeout(resolve, 150));
+    }
+
+    const element = document.getElementById('quotation-pdf-document');
+    if (element) {
+      try {
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+          margin: 8,
+          filename: `Official_Quotation_${quoteData.quotationNumber}.pdf`,
+          image: { type: 'jpeg' as const, quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, logging: false, allowTaint: true },
+          jsPDF: { unit: 'mm' as const, format: 'a4' as const, orientation: 'portrait' as const }
+        };
+
+        await html2pdf().set(opt).from(element).save();
+      } catch (err) {
+        console.warn('html2pdf direct download warning:', err);
+      }
+    }
+
+    setIsExporting(false);
   };
 
   // Native Print
   const handlePrint = () => {
-    window.print();
+    openStandalonePdfWindow(quoteData);
   };
 
   // Mailto Reply
@@ -272,7 +610,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn printable-quotation-modal">
       <div className="bg-gray-950 border border-gray-800 rounded-2xl max-w-5xl w-full h-[95vh] flex flex-col shadow-2xl overflow-hidden relative">
 
         {/* Modal Header */}
@@ -325,6 +663,15 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
             </button>
 
             <button
+              onClick={() => openStandalonePdfWindow(quoteData)}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5 border border-indigo-400/30"
+              title="Open quotation in clean PDF view window to download or print"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Open PDF View</span>
+            </button>
+
+            <button
               onClick={handleDownloadPdf}
               disabled={isExporting}
               className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow transition flex items-center space-x-1.5 border border-emerald-400/30"
@@ -361,8 +708,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
                   <Printer className="w-3.5 h-3.5 text-blue-400" />
                   <span>Standard A4 Print Layout • Ready for Official Submission</span>
                 </span>
-                <button onClick={handlePrint} className="text-blue-400 hover:underline flex items-center space-x-1">
-                  <span>Print via Browser</span>
+                <button onClick={handlePrint} className="text-blue-400 hover:underline flex items-center space-x-1 font-semibold">
+                  <span>Open PDF Window / Print</span>
                   <ExternalLink className="w-3 h-3" />
                 </button>
               </div>
@@ -381,6 +728,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
                         <img
                           src={quoteData.companyLogoUrl}
                           alt="Company Logo"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                          }}
                           style={{ width: '120px', height: '80px' }}
                           className="object-contain rounded"
                         />
@@ -420,7 +770,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
                     <p className="text-sm font-extrabold text-gray-900">{quoteData.clientName}</p>
                     <p className="text-xs text-gray-800 font-semibold">{quoteData.clientCompany}</p>
                     <p className="text-xs text-gray-600">{quoteData.clientAddress}</p>
-                    <p className="text-xs text-blue-800 font-mono mt-1">{quoteData.clientEmail}</p>
+                    <p className="text-xs text-blue-800 font-mono mt-1">
+                      {quoteData.clientEmail}{quoteData.clientPhone ? ` • ${quoteData.clientPhone}` : ''}
+                    </p>
                   </div>
 
                   <div>
@@ -655,12 +1007,34 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({ isOpen, onClose,
                         className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-white"
                       />
                     </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] text-gray-400 mb-1">Client Email</label>
+                        <input
+                          type="text"
+                          value={quoteData.clientEmail}
+                          onChange={e => setQuoteData({ ...quoteData, clientEmail: e.target.value })}
+                          className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-gray-400 mb-1">Client Contact No / Phone</label>
+                        <input
+                          type="text"
+                          value={quoteData.clientPhone || ''}
+                          onChange={e => setQuoteData({ ...quoteData, clientPhone: e.target.value })}
+                          placeholder="+1 (555) 019-2834"
+                          className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-white font-mono"
+                        />
+                      </div>
+                    </div>
                     <div>
-                      <label className="block text-[11px] text-gray-400 mb-1">Client Email</label>
+                      <label className="block text-[11px] text-gray-400 mb-1">Client Office / Billing Address</label>
                       <input
                         type="text"
-                        value={quoteData.clientEmail}
-                        onChange={e => setQuoteData({ ...quoteData, clientEmail: e.target.value })}
+                        value={quoteData.clientAddress}
+                        onChange={e => setQuoteData({ ...quoteData, clientAddress: e.target.value })}
+                        placeholder="Corporate Headquarters, NY 10001"
                         className="w-full bg-gray-900 border border-gray-800 rounded-lg px-3 py-1.5 text-white"
                       />
                     </div>

@@ -1,1 +1,31 @@
 @import "tailwindcss";
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  
+  /* Hide all main UI elements during print except the printable quotation modal container */
+  body > div:not(#root),
+  #root > div:not(.printable-quotation-modal),
+  header, nav, footer, .no-print {
+    display: none !important;
+  }
+
+  /* Target quotation PDF document directly */
+  #quotation-pdf-document {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 10px !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    visibility: visible !important;
+  }
+}

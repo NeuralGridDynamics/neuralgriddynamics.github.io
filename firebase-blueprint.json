@@ -57,6 +57,75 @@
         "shortDesc": { "type": "string" },
         "features": { "type": "array" }
       }
+    },
+    "QuotationRequest": {
+      "title": "Quotation Request",
+      "description": "Client quotation request and PDF studio records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "clientName": { "type": "string" },
+        "clientCompany": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "clientPhone": { "type": "string" },
+        "clientAddress": { "type": "string" },
+        "industrySector": { "type": "string" },
+        "systemCategory": { "type": "string" },
+        "projectTitle": { "type": "string" },
+        "systemPurpose": { "type": "string" },
+        "estimatedTimeline": { "type": "string" },
+        "techStack": { "type": "array" },
+        "deliverables": { "type": "array" },
+        "mainFeatures": { "type": "array" },
+        "estimatedSubtotal": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Inquiry": {
+      "title": "Inquiry",
+      "description": "General customer inquiry or contact submission",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "company": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Commercial milestones, payments, and billing records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "quotationId": { "type": "string" },
+        "clientCompany": { "type": "string" },
+        "clientEmail": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "milestoneName": { "type": "string" },
+        "transactionDate": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "AdminUser": {
+      "title": "Admin User Rights",
+      "description": "Admin access control, role permissions, and database management rights",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "permissions": { "type": "array" },
+        "grantedBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
     }
   },
   "firestore": {
@@ -75,6 +144,22 @@
     "/services/{serviceId}": {
       "schema": "Service",
       "description": "Services offered"
+    },
+    "/quotation_requests/{requestId}": {
+      "schema": "QuotationRequest",
+      "description": "Client quotation and proposal records"
+    },
+    "/inquiries/{inquiryId}": {
+      "schema": "Inquiry",
+      "description": "Enterprise client contact inquiries"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Financial records, billing milestones, and payment audit logs"
+    },
+    "/admins/{adminId}": {
+      "schema": "AdminUser",
+      "description": "Admin privileges and database management rights"
     }
   }
 }

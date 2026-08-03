@@ -344,6 +344,7 @@ export default function App() {
         isOpen={isQuotationOpen}
         onClose={() => setIsQuotationOpen(false)}
         initialData={quotationInitialData}
+        siteConfig={siteConfig}
         onSaveQuotation={(savedData) => {
           setQuotationInitialData(savedData);
           localStorage.setItem('ngd_saved_quotation', JSON.stringify(savedData));

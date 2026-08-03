@@ -44,22 +44,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setCurrentView('public')} 
               className={containerClass}
             >
-              {siteConfig.logoUrl ? (
-                <img 
-                  src={siteConfig.logoUrl} 
-                  alt={siteConfig.companyName} 
-                  loading="eager"
-                  style={{ width: `${w}px`, height: `${h}px` }}
-                  className="rounded-lg object-contain bg-gray-900/60 p-0.5 border border-blue-500/30 group-hover:border-blue-400 transition flex-shrink-0" 
-                />
-              ) : (
-                <div 
-                  style={{ width: `${w}px`, height: `${h}px` }}
-                  className="rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-xs text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition flex-shrink-0"
-                >
-                  NG
-                </div>
-              )}
+              <img 
+                src={siteConfig.logoUrl || '/logo.png'} 
+                alt={siteConfig.companyName} 
+                loading="eager"
+                decoding="sync"
+                style={{ width: `${w}px`, height: `${h}px` }}
+                className="rounded-lg object-contain bg-gray-900/60 p-0.5 border border-blue-500/30 group-hover:border-blue-400 transition flex-shrink-0" 
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                }}
+              />
               <div>
                 <div className="flex items-center space-x-2">
                   <span className="text-lg font-extrabold text-white tracking-tight group-hover:text-blue-400 transition">

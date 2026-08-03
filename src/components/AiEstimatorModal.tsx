@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Loader2, CheckCircle, Cpu, ShieldCheck, Clock, Layers, Send, Key, Bot, User, RefreshCw, Target, Zap, CheckCircle2, Mail, FileText, ExternalLink, MessageSquare } from 'lucide-react';
+import { Sparkles, X, Loader2, CheckCircle, Cpu, ShieldCheck, Clock, Layers, Send, Key, Bot, User, RefreshCw, Target, Zap, CheckCircle2, Mail, FileText, ExternalLink } from 'lucide-react';
 import { QuotationData } from '../types';
 
 interface AiEstimatorModalProps {
@@ -174,30 +174,41 @@ export const AiEstimatorModal: React.FC<AiEstimatorModalProps> = ({
       return;
     }
 
-    const subject = encodeURIComponent(`Enterprise AI Quotation Request: ${targetTech} (${industry})`);
-    const body = encodeURIComponent(
-      `Hello Neural Grid Dynamics Team,\n\n` +
-      `I would like to request an official enterprise quotation and engineering consultation based on the following AI Architecture & Scope Estimation:\n\n` +
-      `--------------------------------------------------\n` +
-      `Industry Sector: ${industry}\n` +
-      `System Category: ${targetTech}\n` +
-      `Deployment Mode: ${deploymentMode}\n` +
-      `Estimated Timeline: ${estimation.estimatedTimeline}\n` +
-      (userQueryText ? `User Scope / Prompt: "${userQueryText}"\n` : '') +
-      `--------------------------------------------------\n\n` +
-      `SYSTEM PURPOSE:\n${estimation.systemPurpose || 'Custom Enterprise System Architecture'}\n\n` +
-      `RECOMMENDED ARCHITECTURE:\n${estimation.recommendedArchitecture}\n\n` +
-      `MAIN FEATURES:\n${(estimation.mainFeatures || []).map(f => '• ' + f).join('\n')}\n\n` +
-      `RECOMMENDED TECH STACK:\n${estimation.recommendedStack.join(', ')}\n\n` +
-      `KEY DELIVERABLES:\n${estimation.keyDeliverables.map(d => '• ' + d).join('\n')}\n\n` +
-      `SECURITY & COMPLIANCE:\n${estimation.securityCompliance}\n\n` +
-      `--------------------------------------------------\n` +
-      `Please contact me with formal pricing milestones and deployment dates.\n\n` +
-      `Best regards,`
-    );
+    // Fallback: Save quotation request directly to local storage and Cloud for Admin Studio
+    const reqId = `qreq-${Date.now()}`;
+    const newQuotationReq = {
+      id: reqId,
+      clientName: 'Guest Enterprise Client',
+      clientCompany: industry || 'Enterprise Client',
+      clientEmail: 'inquiry@enterprise.client',
+      clientPhone: '+1 (555) 019-2834',
+      clientAddress: '100 Enterprise Way, Global Tech Park',
+      industrySector: industry,
+      systemCategory: targetTech,
+      projectTitle: `${targetTech} - Enterprise Solution`,
+      systemPurpose: estimation.systemPurpose || 'Custom Enterprise AI Architecture',
+      estimatedTimeline: estimation.estimatedTimeline || '6 - 10 Weeks',
+      techStack: estimation.recommendedStack,
+      deliverables: estimation.keyDeliverables,
+      mainFeatures: estimation.mainFeatures || [],
+      estimatedSubtotal: 45000,
+      status: 'Pending Review' as const,
+      createdAt: new Date().toISOString(),
+    };
 
-    window.open(`mailto:arfanumail@gmail.com?subject=${subject}&body=${body}`, '_blank');
+    const existingRequests = JSON.parse(localStorage.getItem('ngd_quotation_requests') || '[]');
+    const updatedRequests = [newQuotationReq, ...existingRequests];
+    localStorage.setItem('ngd_quotation_requests', JSON.stringify(updatedRequests));
+
+    // Import and save to cloud if available
+    import('../lib/firebase').then(({ saveQuotationRequestsToCloud }) => {
+      saveQuotationRequestsToCloud(updatedRequests).catch(err => console.warn('Cloud quotation save warning:', err));
+    }).catch(() => null);
+
+    window.dispatchEvent(new Event('ngd_quotation_updated'));
+    alert('Your quotation request has been logged into the Admin Module -> Quotation & PDF Studio!');
   };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
       <div className="bg-gray-900 border border-gray-800 rounded-2xl max-w-4xl w-full h-[92vh] flex flex-col shadow-2xl relative overflow-hidden">
@@ -413,6 +424,7 @@ export const AiEstimatorModal: React.FC<AiEstimatorModalProps> = ({
                           </p>
                         </div>
                       )}
+
                       <p className="text-xs sm:text-sm text-gray-200 leading-relaxed font-medium">
                         {msg.estimation.recommendedArchitecture}
                       </p>
@@ -434,6 +446,7 @@ export const AiEstimatorModal: React.FC<AiEstimatorModalProps> = ({
                           </div>
                         </div>
                       )}
+
                       <div>
                         <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center space-x-1.5">
                           <Cpu className="w-3.5 h-3.5 text-blue-400" />

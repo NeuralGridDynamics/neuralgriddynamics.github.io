@@ -7,6 +7,7 @@ import {
   saveProjectsToCloud,
   saveClientsToCloud,
   saveServicesToCloud,
+  subscribeToClients,
   subscribeToQuotationRequests,
   saveQuotationRequestsToCloud,
   deleteClientFromCloud,
@@ -15,7 +16,7 @@ import {
   deleteInquiryFromCloud
 } from '../../lib/firebase';
 import {
-  Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock, Sliders, MoveLeft, MoveRight, Layout, Mail, Send, Palette, Sun, Moon, Sparkles
+  Settings, Briefcase, Users, MessageSquare, ShieldCheck, Download, Plus, Trash2, Edit3, Save, CheckCircle, RefreshCw, Key, Image as ImageIcon, ExternalLink, Code2, Copy, FileText, Lock, Sliders, MoveLeft, MoveRight, Layout, Mail, Send, Palette, Sun, Moon, Sparkles, AlertTriangle
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -55,8 +56,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     published: true,
   });
 
-  // New Client Form Modal State
+  // Client Form Modal State
   const [isAddingClient, setIsAddingClient] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [clientForm, setClientForm] = useState({
     name: '',
     logoUrl: '',
@@ -66,11 +68,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
     authorName: '',
     authorRole: '',
     featured: true,
+    email: '',
+    phone: '',
+    address: '',
   });
 
   // Password Change Form State
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
+
+  // Custom Delete Confirmation Modal State
+  const [deleteModalState, setDeleteModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    description: '',
+    onConfirm: () => {},
+  });
+
+  const confirmDelete = (title: string, description: string, onConfirm: () => void) => {
+    setDeleteModalState({
+      isOpen: true,
+      title,
+      description,
+      onConfirm,
+    });
+  };
 
   // Helper fetch with token
   const authFetch = async (url: string, options: RequestInit = {}) => {
@@ -150,12 +177,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   useEffect(() => {
     loadAdminData();
 
-    const unsub = subscribeToQuotationRequests((data) => {
+    const unsubQuotation = subscribeToQuotationRequests((data) => {
       if (data) {
         setQuotationRequests(data);
       }
     });
-    return () => unsub();
+
+    const unsubClients = subscribeToClients((data) => {
+      if (data && data.length > 0) {
+        setClients(data);
+      }
+    });
+
+    return () => {
+      unsubQuotation();
+      unsubClients();
+    };
   }, [token]);
 
   // Handle preparing/editing PDF quotation for a client
@@ -174,6 +211,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
         clientName: req.clientName,
         clientCompany: req.clientCompany,
         clientEmail: req.clientEmail,
+        clientPhone: req.clientPhone || '',
         clientAddress: req.clientAddress,
         projectTitle: req.projectTitle,
         systemPurpose: req.systemPurpose,
@@ -237,18 +275,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   };
 
   // Delete Quotation Request
-  const handleDeleteQuotationRequest = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this quotation request?')) return;
-    const updated = quotationRequests.filter(r => r.id !== id);
-    setQuotationRequests(updated);
-    localStorage.setItem('ngd_quotation_requests', JSON.stringify(updated));
-    try {
-      await deleteQuotationRequestFromCloud(id);
-    } catch (err) {
-      console.warn('Cloud delete error:', err);
-    }
-    setStatusMsg('Quotation request deleted.');
-    setTimeout(() => setStatusMsg(''), 3000);
+  const handleDeleteQuotationRequest = (id: string) => {
+    confirmDelete(
+      'Delete Quotation Request',
+      'Are you sure you want to delete this client quotation request? This action will remove it from the admin console.',
+      async () => {
+        const updated = quotationRequests.filter(r => r.id !== id);
+        setQuotationRequests(updated);
+        localStorage.setItem('ngd_quotation_requests', JSON.stringify(updated));
+        try {
+          await deleteQuotationRequestFromCloud(id);
+        } catch (err) {
+          console.warn('Cloud delete error:', err);
+        }
+        setStatusMsg('Quotation request deleted.');
+        setTimeout(() => setStatusMsg(''), 3000);
+      }
+    );
   };
 
   // Save Site Settings
@@ -359,41 +402,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   };
 
   // Delete Project
-  const handleDeleteProject = async (id: string) => {
-    if (!confirm('Are you sure you want to remove this project?')) return;
+  const handleDeleteProject = (id: string) => {
+    confirmDelete(
+      'Delete Project Case Study',
+      'Are you sure you want to remove this enterprise project case study? This will delete it from both admin management and public showcase.',
+      async () => {
+        const updated = projects.filter(p => p.id !== id);
+        setProjects(updated);
+        localStorage.setItem('ngd_projects', JSON.stringify(updated));
 
-    const updated = projects.filter(p => p.id !== id);
-    setProjects(updated);
-    localStorage.setItem('ngd_projects', JSON.stringify(updated));
+        try {
+          await deleteProjectFromCloud(id);
+        } catch (err) {
+          console.warn('Firestore cloud delete warning:', err);
+        }
 
-    try {
-      await deleteProjectFromCloud(id);
-    } catch (err) {
-      console.warn('Firestore cloud delete warning:', err);
-    }
+        try {
+          await authFetch(`/api/admin/projects/${id}`, { method: 'DELETE' });
+        } catch (err) {
+          // ignore
+        }
 
-    try {
-      await authFetch(`/api/admin/projects/${id}`, { method: 'DELETE' });
-    } catch (err) {
-      // ignore
-    }
-
-    setStatusMsg('Project deleted & synced to Cloud!');
-    onRefreshPublicData();
-    setTimeout(() => setStatusMsg(''), 3000);
+        setStatusMsg('Project deleted & synced to Cloud!');
+        onRefreshPublicData();
+        setTimeout(() => setStatusMsg(''), 3000);
+      }
+    );
   };
 
-  // Save Client (Add)
+  const handleStartAddClient = () => {
+    setEditingClient(null);
+    setClientForm({
+      name: '',
+      logoUrl: '',
+      industry: 'Banking & Financial Tech',
+      website: '',
+      testimonial: '',
+      authorName: '',
+      authorRole: '',
+      featured: true,
+      email: '',
+      phone: '',
+      address: '',
+    });
+    setIsAddingClient(true);
+  };
+
+  const handleStartEditClient = (c: Client) => {
+    setEditingClient(c);
+    setClientForm({
+      name: c.name || '',
+      logoUrl: c.logoUrl || '',
+      industry: c.industry || 'Banking & Financial Tech',
+      website: c.website || '',
+      testimonial: c.testimonial || '',
+      authorName: c.authorName || '',
+      authorRole: c.authorRole || '',
+      featured: c.featured !== undefined ? c.featured : true,
+      email: c.email || '',
+      phone: c.phone || '',
+      address: c.address || '',
+    });
+    setIsAddingClient(true);
+  };
+
+  // Save Client (Add / Edit)
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newClient: Client = {
-      id: 'client-' + Date.now(),
-      ...clientForm
-    };
-    const updated = [newClient, ...clients];
+    let updated: Client[];
+
+    if (editingClient) {
+      const updatedClient: Client = {
+        ...editingClient,
+        ...clientForm,
+      };
+      updated = clients.map(c => c.id === editingClient.id ? updatedClient : c);
+    } else {
+      const newClient: Client = {
+        id: 'client-' + Date.now(),
+        ...clientForm
+      };
+      updated = [newClient, ...clients];
+    }
+
     setClients(updated);
     localStorage.setItem('ngd_clients', JSON.stringify(updated));
     setIsAddingClient(false);
+    setEditingClient(null);
 
     try {
       await saveClientsToCloud(updated);
@@ -410,7 +505,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       // ignore
     }
 
-    setStatusMsg('Client added & synced to Cloud Database!');
+    setStatusMsg(editingClient ? 'Client profile updated & synced!' : 'Client added & synced to Cloud Database!');
 
     setClientForm({
       name: '',
@@ -421,6 +516,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
       authorName: '',
       authorRole: '',
       featured: true,
+      email: '',
+      phone: '',
+      address: '',
     });
     loadAdminData();
     onRefreshPublicData();
@@ -428,28 +526,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   };
 
   // Delete Client
-  const handleDeleteClient = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this client?')) return;
+  const handleDeleteClient = (id: string) => {
+    confirmDelete(
+      'Delete Client Profile',
+      'Are you sure you want to delete this client record? This will remove the client profile and associated contact information.',
+      async () => {
+        const updated = clients.filter(c => c.id !== id);
+        setClients(updated);
+        localStorage.setItem('ngd_clients', JSON.stringify(updated));
 
-    const updated = clients.filter(c => c.id !== id);
-    setClients(updated);
-    localStorage.setItem('ngd_clients', JSON.stringify(updated));
+        try {
+          await deleteClientFromCloud(id);
+        } catch (err) {
+          console.warn('Firestore cloud delete warning:', err);
+        }
 
-    try {
-      await deleteClientFromCloud(id);
-    } catch (err) {
-      console.warn('Firestore cloud delete warning:', err);
-    }
+        try {
+          await authFetch(`/api/admin/clients/${id}`, { method: 'DELETE' });
+        } catch (err) {
+          // ignore
+        }
 
-    try {
-      await authFetch(`/api/admin/clients/${id}`, { method: 'DELETE' });
-    } catch (err) {
-      // ignore
-    }
-
-    setStatusMsg('Client deleted & synced to Cloud!');
-    onRefreshPublicData();
-    setTimeout(() => setStatusMsg(''), 3000);
+        setStatusMsg('Client deleted & synced to Cloud!');
+        onRefreshPublicData();
+        setTimeout(() => setStatusMsg(''), 3000);
+      }
+    );
   };
 
   // Update Inquiry Status
@@ -466,19 +568,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ token, onLogout,
   };
 
   // Delete Inquiry
-  const handleDeleteInquiry = async (id: string) => {
-    if (!confirm('Delete this inquiry?')) return;
-    try {
-      await deleteInquiryFromCloud(id);
-    } catch (err) {
-      console.warn('Cloud delete inquiry error:', err);
-    }
-    try {
-      await authFetch(`/api/admin/inquiries/${id}`, { method: 'DELETE' });
-    } catch (err) {
-      console.error(err);
-    }
-    loadAdminData();
+  const handleDeleteInquiry = (id: string) => {
+    confirmDelete(
+      'Delete Consultation Inquiry',
+      'Are you sure you want to delete this client consultation message?',
+      async () => {
+        const updated = inquiries.filter(i => i.id !== id);
+        setInquiries(updated);
+        localStorage.setItem('ngd_inquiries', JSON.stringify(updated));
+
+        try {
+          await deleteInquiryFromCloud(id);
+        } catch (err) {
+          console.warn('Cloud delete inquiry error:', err);
+        }
+        try {
+          await authFetch(`/api/admin/inquiries/${id}`, { method: 'DELETE' });
+        } catch (err) {
+          console.error(err);
+        }
+        setStatusMsg('Inquiry deleted.');
+        setTimeout(() => setStatusMsg(''), 3000);
+      }
+    );
   };
 
   // Change Password
@@ -569,16 +681,20 @@ export const defaultServices: Service[] = [
 
   // Reset local storage overrides
   const handleResetLocalCache = () => {
-    if (confirm('Reset local browser storage and reload default repository data?')) {
-      localStorage.removeItem('ngd_site_config');
-      localStorage.removeItem('ngd_projects');
-      localStorage.removeItem('ngd_clients');
-      localStorage.removeItem('ngd_services');
-      loadAdminData();
-      onRefreshPublicData();
-      setStatusMsg('Reset local browser cache! Loaded data from initialData.ts.');
-      setTimeout(() => setStatusMsg(''), 4000);
-    }
+    confirmDelete(
+      'Reset Local Storage',
+      'Are you sure you want to reset local browser storage and reload default repository data?',
+      () => {
+        localStorage.removeItem('ngd_site_config');
+        localStorage.removeItem('ngd_projects');
+        localStorage.removeItem('ngd_clients');
+        localStorage.removeItem('ngd_services');
+        loadAdminData();
+        onRefreshPublicData();
+        setStatusMsg('Reset local browser cache! Loaded data from initialData.ts.');
+        setTimeout(() => setStatusMsg(''), 4000);
+      }
+    );
   };
 
   return (
@@ -901,21 +1017,15 @@ export const defaultServices: Service[] = [
                         : 'flex items-center space-x-3'
                     }
                   >
-                    {siteConfig.logoUrl ? (
-                      <img
-                        src={siteConfig.logoUrl}
-                        alt="Preview"
-                        style={{ width: `${siteConfig.logoWidth || 30}px`, height: `${siteConfig.logoHeight || 35}px` }}
-                        className="rounded-lg object-contain bg-gray-900 p-0.5 border border-blue-500/30 flex-shrink-0"
-                      />
-                    ) : (
-                      <div
-                        style={{ width: `${siteConfig.logoWidth || 30}px`, height: `${siteConfig.logoHeight || 35}px` }}
-                        className="rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center font-black text-xs text-white flex-shrink-0"
-                      >
-                        NG
-                      </div>
-                    )}
+                    <img
+                      src={siteConfig.logoUrl || '/logo.png'}
+                      alt="Preview"
+                      style={{ width: `${siteConfig.logoWidth || 120}px`, height: `${siteConfig.logoHeight || 80}px` }}
+                      className="rounded-lg object-contain bg-gray-900 p-0.5 border border-blue-500/30 flex-shrink-0"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                      }}
+                    />
                     <div>
                       <div className="flex items-center space-x-2">
                         <span className="text-sm font-extrabold text-white">
@@ -1689,12 +1799,12 @@ export const defaultServices: Service[] = [
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-gray-900 border border-gray-800 rounded-2xl p-6">
               <div>
-                <h2 className="text-lg font-bold text-white">Client Portfolio & Testimonials</h2>
-                <p className="text-xs text-gray-400">Manage client company profiles, logos, and executive quotes.</p>
+                <h2 className="text-lg font-bold text-white">Client Portfolio & Management</h2>
+                <p className="text-xs text-gray-400">Manage online quotation client records, company profiles, contact details, and executive quotes.</p>
               </div>
 
               <button
-                onClick={() => setIsAddingClient(true)}
+                onClick={handleStartAddClient}
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
@@ -1705,13 +1815,13 @@ export const defaultServices: Service[] = [
             {isAddingClient && (
               <form onSubmit={handleSaveClient} className="bg-gray-900 border border-blue-500/40 rounded-2xl p-6 sm:p-8 space-y-4 animate-fadeIn">
                 <div className="flex justify-between items-center border-b border-gray-800 pb-3">
-                  <h3 className="text-base font-bold text-white">Add Enterprise Client</h3>
-                  <button type="button" onClick={() => setIsAddingClient(false)} className="text-xs text-gray-400">Cancel</button>
+                  <h3 className="text-base font-bold text-white">{editingClient ? 'Edit Enterprise Client Profile' : 'Add Enterprise Client'}</h3>
+                  <button type="button" onClick={() => { setIsAddingClient(false); setEditingClient(null); }} className="text-xs text-gray-400 hover:text-white">Cancel</button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-gray-300 mb-1">Company Name *</label>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Company / Client Name *</label>
                     <input
                       type="text"
                       required
@@ -1732,16 +1842,27 @@ export const defaultServices: Service[] = [
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <ImageUploader
-                      label="Client Logo Image"
-                      value={clientForm.logoUrl}
-                      onChange={(newUrl) => setClientForm({ ...clientForm, logoUrl: newUrl })}
-                      helpText="Upload the client company logo from your local computer."
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Client Email</label>
+                    <input
+                      type="email"
+                      value={clientForm.email}
+                      onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
+                      placeholder="client@company.com"
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white"
                     />
                   </div>
-
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-300 mb-1">Contact No / Phone</label>
+                    <input
+                      type="text"
+                      value={clientForm.phone}
+                      onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })}
+                      placeholder="+1 (555) 019-2834"
+                      className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono"
+                    />
+                  </div>
                   <div>
                     <label className="block text-xs font-semibold text-gray-300 mb-1">Website URL</label>
                     <input
@@ -1751,6 +1872,26 @@ export const defaultServices: Service[] = [
                       className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-300 mb-1">Client Office / Billing Address</label>
+                  <input
+                    type="text"
+                    value={clientForm.address}
+                    onChange={(e) => setClientForm({ ...clientForm, address: e.target.value })}
+                    placeholder="Corporate Headquarters, Suite 100, NY 10001"
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-xs text-white"
+                  />
+                </div>
+
+                <div>
+                  <ImageUploader
+                    label="Client Logo Image"
+                    value={clientForm.logoUrl}
+                    onChange={(newUrl) => setClientForm({ ...clientForm, logoUrl: newUrl })}
+                    helpText="Upload the client company logo from your local computer."
+                  />
                 </div>
 
                 <div>
@@ -1784,35 +1925,66 @@ export const defaultServices: Service[] = [
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition"
-                >
-                  Save Client Record
-                </button>
+                <div className="flex space-x-3 pt-2">
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition"
+                  >
+                    {editingClient ? 'Update Client Profile' : 'Save Client Record'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setIsAddingClient(false); setEditingClient(null); }}
+                    className="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-bold text-xs rounded-xl transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {clients.map((c) => (
-                <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex justify-between items-start">
+                <div key={c.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex justify-between items-start hover:border-gray-700 transition">
                   <div className="flex items-start space-x-3">
-                    <img src={c.logoUrl} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-950" />
-                    <div>
+                    {c.logoUrl ? (
+                      <img src={c.logoUrl} alt="" className="w-12 h-12 rounded-lg object-cover bg-gray-950 border border-gray-800" onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/logo.png'; }} />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg bg-blue-900 text-white font-bold flex items-center justify-center text-xs">LOG</div>
+                    )}
+                    <div className="space-y-1">
                       <h4 className="font-bold text-white text-sm">{c.name}</h4>
-                      <p className="text-xs text-blue-400">{c.industry}</p>
+                      <p className="text-xs text-blue-400 font-semibold">{c.industry}</p>
+                      {(c.email || c.phone) && (
+                        <p className="text-[11px] text-gray-400 font-mono">
+                          {c.email}{c.phone ? ` • ${c.phone}` : ''}
+                        </p>
+                      )}
+                      {c.address && (
+                        <p className="text-[11px] text-gray-500">{c.address}</p>
+                      )}
                       {c.testimonial && (
-                        <p className="text-xs text-gray-400 italic mt-2 line-clamp-2">"{c.testimonial}"</p>
+                        <p className="text-xs text-gray-400 italic mt-1 line-clamp-2">"{c.testimonial}"</p>
                       )}
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleDeleteClient(c.id)}
-                    className="p-1.5 bg-red-950/60 hover:bg-red-600 text-red-300 hover:text-white rounded transition"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex space-x-1.5">
+                    <button
+                      onClick={() => handleStartEditClient(c)}
+                      title="Edit Client"
+                      className="p-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 hover:text-white rounded transition"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteClient(c.id)}
+                      title="Delete Client"
+                      className="p-1.5 bg-red-950/60 hover:bg-red-600 text-red-300 hover:text-white rounded transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2270,6 +2442,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $_POST['action'] === 'login') {
               </pre>
             </div>
 
+          </div>
+        )}
+
+        {/* Custom Delete Confirmation Modal */}
+        {deleteModalState.isOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+            <div className="bg-gray-900 border border-red-500/50 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-3 bg-red-950/80 border border-red-800/60 rounded-xl text-red-400">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">{deleteModalState.title}</h3>
+                  <p className="text-xs text-red-400 font-semibold">Confirmation Required</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-300 leading-relaxed">
+                {deleteModalState.description}
+              </p>
+
+              <div className="flex justify-end space-x-3 pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalState({ ...deleteModalState, isOpen: false })}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-bold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteModalState.onConfirm();
+                    setDeleteModalState({ ...deleteModalState, isOpen: false });
+                  }}
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-900/40 transition flex items-center space-x-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Confirm Delete</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

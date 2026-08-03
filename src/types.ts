@@ -120,6 +120,7 @@ export interface QuotationData {
   clientName: string;
   clientCompany: string;
   clientEmail: string;
+  clientPhone?: string;
   clientAddress: string;
   projectTitle: string;
   systemPurpose: string;
@@ -164,3 +165,28 @@ export interface QuotationRequest {
   createdAt: string;
   quotationData?: QuotationData;
 }
+
+export interface TransactionRecord {
+  id: string;
+  quotationId?: string;
+  clientCompany: string;
+  clientEmail: string;
+  amount: number;
+  currency: string;
+  paymentMethod: 'Bank Transfer' | 'Stripe Credit' | 'Escrow Wire' | 'Crypto USDT';
+  paymentStatus: 'Completed' | 'Pending' | 'In Escrow' | 'Failed';
+  milestoneName: string;
+  transactionDate: string;
+  notes?: string;
+}
+
+export interface AdminUserRights {
+  id: string;
+  uid: string;
+  email: string;
+  role: 'SuperAdmin' | 'SalesManager' | 'SystemAuditor' | 'DatabaseOperator';
+  permissions: Array<'read_all' | 'write_all' | 'manage_quotations' | 'manage_transactions' | 'manage_admins' | 'export_db'>;
+  grantedBy: string;
+  createdAt: string;
+}
+

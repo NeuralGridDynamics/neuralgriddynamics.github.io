@@ -29,22 +29,17 @@ export const Footer: React.FC<FooterProps> = ({ siteConfig, onOpenAdminLogin }) 
 
               return (
                 <div className={footerContainerClass}>
-                  {siteConfig.logoUrl ? (
-                    <img 
-                      src={siteConfig.logoUrl} 
-                      alt={siteConfig.companyName} 
-                      loading="eager"
-                      style={{ width: `${w}px`, height: `${h}px` }}
-                      className="rounded-lg object-contain bg-gray-900 border border-blue-500/30 flex-shrink-0" 
-                    />
-                  ) : (
-                    <div 
-                      style={{ width: `${w}px`, height: `${h}px` }}
-                      className="rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-xs flex-shrink-0"
-                    >
-                      NG
-                    </div>
-                  )}
+                  <img 
+                    src={siteConfig.logoUrl || '/logo.png'} 
+                    alt={siteConfig.companyName} 
+                    loading="eager"
+                    decoding="sync"
+                    style={{ width: `${w}px`, height: `${h}px` }}
+                    className="rounded-lg object-contain bg-gray-900 border border-blue-500/30 flex-shrink-0" 
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = '/logo.png';
+                    }}
+                  />
                   <span className="font-bold text-white text-base">{siteConfig.companyName}</span>
                 </div>
               );

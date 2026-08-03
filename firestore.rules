@@ -6,6 +6,17 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'arfanumail@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
     match /site_config/{configId} {
       allow read: if true;
       allow write: if isValidId(configId);
@@ -24,6 +35,26 @@ service cloud.firestore {
     match /services/{serviceId} {
       allow read: if true;
       allow write: if isValidId(serviceId);
+    }
+
+    match /quotation_requests/{requestId} {
+      allow read: if true;
+      allow write: if isValidId(requestId);
+    }
+
+    match /inquiries/{inquiryId} {
+      allow read: if true;
+      allow write: if isValidId(inquiryId);
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if true;
+      allow write: if isValidId(transactionId);
+    }
+
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if isValidId(adminId);
     }
 
     match /{document=**} {
